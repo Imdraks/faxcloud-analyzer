@@ -5,6 +5,9 @@
 pandas>=2.0.0
 openpyxl>=3.1.0
 
+# Base de données MySQL (WampServer)
+mysql-connector-python>=8.0.0
+
 # Génération QR codes
 qrcode>=7.4.0
 pillow>=10.0.0
