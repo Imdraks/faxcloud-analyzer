@@ -4,7 +4,7 @@ Centralise la logique de validation pour réutilisation en Python et JavaScript
 """
 
 import re
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Optional
 
 # ═══════════════════════════════════════════════════════════════════════════
 # TYPES D'ERREURS
@@ -219,11 +219,11 @@ def run_tests():
         print(f"\n[{status}] Input: {repr(numero_input)}")
         
         if not valid_ok:
-            print(f"  ⚠️  Valid: attendu {expected_valid}, obtenu {est_valide}")
+            print(f"    Valide: attendu {expected_valid}, obtenu {est_valide}")
         if not norm_ok:
-            print(f"  ⚠️  Normalized: attendu {expected_norm}, obtenu {numero_norm}")
+            print(f"    Normalise: attendu {expected_norm}, obtenu {numero_norm}")
         if not error_ok:
-            print(f"  ⚠️  Error: attendu {expected_error}, obtenu {erreur}")
+            print(f"    Erreur: attendu {expected_error}, obtenu {erreur}")
     
     print("\n" + "="*70)
     print("[RESULTATS] " + str(passed) + " OK | " + str(failed) + " ERREURS | Total: " + str(passed + failed))
@@ -271,6 +271,66 @@ def analyze_entry(entry: Dict) -> Dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# VALIDATION PAGES ET TYPE FAX
+# ═══════════════════════════════════════════════════════════════════════════
+
+def validate_pages(nombre_pages_brut: str) -> Tuple[bool, Optional[str]]:
+    """
+    Valide le nombre de pages (colonne K)
+    
+    Règles:
+    - Doit être numérique
+    - Doit être >= 1
+    
+    Args:
+        nombre_pages_brut: Valeur brute du champ pages
+    
+    Returns:
+        Tuple[bool, Optional[str]]: (est_valide, message_erreur)
+            - Si valide: (True, None)
+            - Si erreur: (False, "Message d'erreur")
+    """
+    try:
+        # Convertir en nombre
+        try:
+            nb_pages = int(str(nombre_pages_brut).strip())
+        except ValueError:
+            return False, "Nombre de pages invalide"
+        
+        # Vérifier >= 1
+        if nb_pages < 1:
+            return False, "Nombre de pages doit être >= 1"
+        
+        return True, None
+    
+    except Exception:
+        return False, "Nombre de pages invalide"
+
+
+def validate_fax_type(mode_brut: str) -> Tuple[bool, Optional[str]]:
+    """
+    Valide le type de FAX (colonne D)
+    
+    Règles:
+    - SF = Fax envoyé (Send Fax)
+    - RF = Fax reçu (Receive Fax)
+    - Autre valeur = erreur
+    
+    Args:
+        mode_brut: Valeur brute du champ Mode
+    
+    Returns:
+        Tuple[bool, Optional[str]]: (est_valide, message_erreur)
+    """
+    mode = str(mode_brut).strip().upper()
+    
+    if mode in ['SF', 'RF']:
+        return True, None
+    else:
+        return False, f"Type de FAX invalide: {mode}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     # Exécuter les tests
@@ -278,7 +338,7 @@ if __name__ == "__main__":
     
     # Afficher des exemples
     print("\n" + "="*70)
-    print("📝 EXEMPLES D'UTILISATION")
+    print("[EXEMPLES] Utilisation pratique")
     print("="*70)
     
     exemples = [
@@ -292,9 +352,9 @@ if __name__ == "__main__":
     for numero in exemples:
         est_valide, numero_norm, erreur = analyze_number(numero)
         print(f"\nInput: {repr(numero)}")
-        print(f"  → Normalisé: {numero_norm}")
-        print(f"  → Valide: {'✅ OUI' if est_valide else '❌ NON'}")
+        print(f"  -> Normalise: {numero_norm}")
+        print(f"  -> Valide: {'OUI' if est_valide else 'NON'}")
         if erreur:
-            print(f"  → Erreur: {erreur}")
+            print(f"  -> Erreur: {erreur}")
     
     print("\n")
