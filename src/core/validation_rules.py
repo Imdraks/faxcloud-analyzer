@@ -1,0 +1,293 @@
+"""
+Module de validation - Règles officielles FaxCloud
+Centralise la logique de validation pour réutilisation en Python et JavaScript
+"""
+
+import re
+from typing import Tuple, Dict, List
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TYPES D'ERREURS
+# ═══════════════════════════════════════════════════════════════════════════
+
+ERROR_TYPES = {
+    'empty': 'Numéro vide',
+    'length': 'Longueur incorrecte',
+    'prefix': 'Indicatif invalide',
+    'format': 'Format invalide',
+    'asterisk': 'Ligne détectée comme voix (Asterisk)',
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CONSTANTES
+# ═══════════════════════════════════════════════════════════════════════════
+
+PHONE_LENGTH = 11
+COUNTRY_CODE = '33'
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VALIDATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+def normalize_number(numero_brut: str) -> str:
+    """
+    Étape 1: Normalisation du numéro
+    
+    Retire tous les caractères non-numériques.
+    Convertit 0X → 33X (numéros français nationaux)
+    
+    Exemples:
+        "+33 1 45 22 11 34" → "33145221134"
+        "01 45 22 11 34" → "33145221134"
+        "03.27.93.69.43" → "3327936943"
+    
+    Args:
+        numero_brut (str): Numéro brut avec caractères spéciaux
+    
+    Returns:
+        str: Numéro normalisé (chiffres uniquement)
+    """
+    try:
+        # Étape 1a: Retirer tous les caractères non-numériques
+        numero = re.sub(r'\D', '', str(numero_brut))
+        
+        # Étape 1b: Convertir 0X → 33X
+        if numero.startswith('0'):
+            numero = '33' + numero[1:]
+        
+        return numero
+    
+    except Exception:
+        return ''
+
+
+def validate_number(numero_normalise: str) -> Tuple[bool, str]:
+    """
+    Valide un numéro normalisé selon les règles officielles.
+    
+    Vérifie (dans cet ordre):
+    1. Non vide
+    2. Longueur = 11
+    3. Commence par 33
+    
+    Args:
+        numero_normalise (str): Numéro déjà normalisé
+    
+    Returns:
+        Tuple[bool, str]: (est_valide, message_erreur)
+            - Si valide: (True, None)
+            - Si erreur: (False, "Message d'erreur")
+    
+    Examples:
+        >>> validate_number("33145221134")
+        (True, None)
+        
+        >>> validate_number("")
+        (False, "Numéro vide")
+        
+        >>> validate_number("0145221134")
+        (False, "Longueur incorrecte")
+        
+        >>> validate_number("+1234567890")
+        (False, "Indicatif invalide")
+    """
+    
+    # Règle 1: Non vide
+    if not numero_normalise or len(numero_normalise) == 0:
+        return False, ERROR_TYPES['empty']
+    
+    # Règle 2: Longueur exacte 11
+    if len(numero_normalise) != PHONE_LENGTH:
+        return False, ERROR_TYPES['length']
+    
+    # Règle 3: Commence par 33
+    if not numero_normalise.startswith(COUNTRY_CODE):
+        return False, ERROR_TYPES['prefix']
+    
+    # Toutes les vérifications passées
+    return True, None
+
+
+def analyze_number(numero_brut: str) -> Tuple[bool, str, str]:
+    """
+    Analyse complète d'un numéro (normalisation + validation).
+    
+    C'est la fonction principale à utiliser.
+    
+    Args:
+        numero_brut (str): Numéro brut (peut contenir caractères spéciaux)
+    
+    Returns:
+        Tuple[bool, str, str]: (est_valide, numero_normalise, erreur)
+    
+    Examples:
+        >>> analyze_number("+33 1 45 22 11 34")
+        (True, "33145221134", None)
+        
+        >>> analyze_number("01 45 22 11 34")
+        (True, "33145221134", None)
+        
+        >>> analyze_number("")
+        (False, "", "Numéro vide")
+        
+        >>> analyze_number("🔥🎉🔥")
+        (False, "", "Numéro vide")
+    """
+    
+    try:
+        # Normaliser
+        numero_normalise = normalize_number(numero_brut)
+        
+        # Valider
+        est_valide, erreur = validate_number(numero_normalise)
+        
+        if est_valide:
+            return True, numero_normalise, None
+        else:
+            return False, numero_normalise, erreur
+    
+    except Exception as e:
+        return False, '', ERROR_TYPES['format']
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST SUITES
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Cas de test pour validation
+TEST_CASES = [
+    # (input, expected_valid, expected_normalized, expected_error)
+    
+    # ✅ Cas valides
+    ("33145221134", True, "33145221134", None),
+    ("+33 1 45 22 11 34", True, "33145221134", None),
+    ("01 45 22 11 34", True, "33145221134", None),
+    ("+33(1)45221134", True, "33145221134", None),
+    ("33-1-45-22-11-34", True, "33145221134", None),
+    ("0033145221134", True, "33145221134", None),
+    
+    # ❌ Cas invalides - Numéro vide
+    ("", False, "", "Numéro vide"),
+    ("   ", False, "", "Numéro vide"),
+    ("---", False, "", "Numéro vide"),
+    ("+++", False, "", "Numéro vide"),
+    ("🔥🎉🔥", False, "", "Numéro vide"),
+    
+    # ❌ Cas invalides - Longueur incorrecte
+    ("0145221134", False, "33145221134", "Longueur incorrecte"),  # 10 chiffres
+    ("331452211", False, "331452211", "Longueur incorrecte"),     # 9 chiffres
+    ("0033145221134", False, "33145221134", "Longueur incorrecte"), # 13 chiffres
+    
+    # ❌ Cas invalides - Indicatif invalide
+    ("+1-212-555-1234", False, "12125551234", "Indicatif invalide"),  # USA
+    ("+44 20 7946 0958", False, "442079460958", "Indicatif invalide"),  # UK
+    ("+49 30 1234 5678", False, "493012345678", "Indicatif invalide"),  # Allemagne
+]
+
+
+def run_tests():
+    """Exécute la suite de tests"""
+    print("\n" + "="*70)
+    print("🧪 TEST SUITE - Validation des numéros")
+    print("="*70)
+    
+    passed = 0
+    failed = 0
+    
+    for numero_input, expected_valid, expected_norm, expected_error in TEST_CASES:
+        est_valide, numero_norm, erreur = analyze_number(numero_input)
+        
+        # Vérifier les résultats
+        valid_ok = est_valide == expected_valid
+        norm_ok = numero_norm == expected_norm
+        error_ok = erreur == expected_error
+        
+        if valid_ok and norm_ok and error_ok:
+            status = "✅ PASS"
+            passed += 1
+        else:
+            status = "❌ FAIL"
+            failed += 1
+        
+        print(f"\n{status} | Input: {repr(numero_input)}")
+        
+        if not valid_ok:
+            print(f"  ⚠️  Valid: attendu {expected_valid}, obtenu {est_valide}")
+        if not norm_ok:
+            print(f"  ⚠️  Normalized: attendu {expected_norm}, obtenu {numero_norm}")
+        if not error_ok:
+            print(f"  ⚠️  Error: attendu {expected_error}, obtenu {erreur}")
+    
+    print("\n" + "="*70)
+    print(f"📊 RÉSULTATS: {passed} ✅ | {failed} ❌ | Total: {passed + failed}")
+    print("="*70 + "\n")
+    
+    return failed == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# UTILISATION EN ANALYSE
+# ═══════════════════════════════════════════════════════════════════════════
+
+def analyze_entry(entry: Dict) -> Dict:
+    """
+    Analyse une entrée FAX complète.
+    
+    Args:
+        entry (Dict): Dictionnaire avec les clés:
+            - 'numero_appele': Le numéro à analyser
+            - 'fax_id': ID du FAX (pour traçage)
+            - 'utilisateur': Nom de l'utilisateur
+            - 'mode': SF ou RF
+            - 'pages': Nombre de pages
+    
+    Returns:
+        Dict: Résultat d'analyse avec:
+            - 'numero_original': Le numéro brut
+            - 'numero_normalise': Le numéro normalisé
+            - 'valide': True/False
+            - 'erreurs': Liste des erreurs (vide si valide)
+    """
+    numero_brut = entry.get('numero_appele', '')
+    
+    est_valide, numero_norm, erreur = analyze_number(numero_brut)
+    
+    return {
+        'numero_original': numero_brut,
+        'numero_normalise': numero_norm,
+        'valide': est_valide,
+        'erreurs': [erreur] if erreur else [],
+        'utilisateur': entry.get('utilisateur', ''),
+        'mode': entry.get('mode', ''),
+        'pages': entry.get('pages', 0),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    # Exécuter les tests
+    success = run_tests()
+    
+    # Afficher des exemples
+    print("\n" + "="*70)
+    print("📝 EXEMPLES D'UTILISATION")
+    print("="*70)
+    
+    exemples = [
+        "+33 1 45 22 11 34",
+        "01 45 22 11 34",
+        "0145221134",
+        "",
+        "+1-212-555-1234",
+    ]
+    
+    for numero in exemples:
+        est_valide, numero_norm, erreur = analyze_number(numero)
+        print(f"\nInput: {repr(numero)}")
+        print(f"  → Normalisé: {numero_norm}")
+        print(f"  → Valide: {'✅ OUI' if est_valide else '❌ NON'}")
+        if erreur:
+            print(f"  → Erreur: {erreur}")
+    
+    print("\n")
