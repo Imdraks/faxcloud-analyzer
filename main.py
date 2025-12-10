@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent / "src" / "core"))
 
 # Importer les modules
 import config
-import db
 import importer
 import analyzer
 import reporter
@@ -185,10 +184,9 @@ def main():
     # ─────────────────────────────────────────────────────────────────────
     
     if args.command == "init":
-        logger.info("🔧 Initialisation du projet...")
+        logger.info("Initialisation du projet...")
         config.ensure_directories()
-        db.init_database()
-        logger.info("✅ Projet initialisé avec succès")
+        logger.info("Projet initiialise avec succes")
         return
     
     # ─────────────────────────────────────────────────────────────────────
@@ -276,7 +274,6 @@ def main():
 __all__ = [
     'process_export',
     'config',
-    'db',
     'importer',
     'analyzer',
     'reporter'
