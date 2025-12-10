@@ -35,11 +35,14 @@ def normalize_number(numero_brut: str) -> str:
     
     Retire tous les caractères non-numériques.
     Convertit 0X → 33X (numéros français nationaux)
+    Gère les formats internationaux +33 et 0033
     
     Exemples:
         "+33 1 45 22 11 34" → "33145221134"
         "01 45 22 11 34" → "33145221134"
+        "0145221134" → "33145221134"
         "03.27.93.69.43" → "3327936943"
+        "0033145221134" → "33145221134"
     
     Args:
         numero_brut (str): Numéro brut avec caractères spéciaux
@@ -51,8 +54,12 @@ def normalize_number(numero_brut: str) -> str:
         # Étape 1a: Retirer tous les caractères non-numériques
         numero = re.sub(r'\D', '', str(numero_brut))
         
-        # Étape 1b: Convertir 0X → 33X
-        if numero.startswith('0'):
+        # Étape 1b: Gérer les différents formats
+        # Si commence par 0033, retirer les zéros initiaux
+        if numero.startswith('0033'):
+            numero = '33' + numero[4:]
+        # Si commence par 0, convertir 0X → 33X
+        elif numero.startswith('0') and not numero.startswith('00'):
             numero = '33' + numero[1:]
         
         return numero
@@ -162,9 +169,10 @@ TEST_CASES = [
     ("33145221134", True, "33145221134", None),
     ("+33 1 45 22 11 34", True, "33145221134", None),
     ("01 45 22 11 34", True, "33145221134", None),
+    ("0145221134", True, "33145221134", None),  # Conversion 0X → 33X
     ("+33(1)45221134", True, "33145221134", None),
     ("33-1-45-22-11-34", True, "33145221134", None),
-    ("0033145221134", True, "33145221134", None),
+    ("0033145221134", True, "33145221134", None),  # Conversion 0033 → 33
     
     # ❌ Cas invalides - Numéro vide
     ("", False, "", "Numéro vide"),
@@ -174,21 +182,20 @@ TEST_CASES = [
     ("🔥🎉🔥", False, "", "Numéro vide"),
     
     # ❌ Cas invalides - Longueur incorrecte
-    ("0145221134", False, "33145221134", "Longueur incorrecte"),  # 10 chiffres
     ("331452211", False, "331452211", "Longueur incorrecte"),     # 9 chiffres
-    ("0033145221134", False, "33145221134", "Longueur incorrecte"), # 13 chiffres
+    ("0145221134X", True, "33145221134", None),  # X est retiré (caractère non-numérique), résultat valide
     
-    # ❌ Cas invalides - Indicatif invalide
-    ("+1-212-555-1234", False, "12125551234", "Indicatif invalide"),  # USA
-    ("+44 20 7946 0958", False, "442079460958", "Indicatif invalide"),  # UK
-    ("+49 30 1234 5678", False, "493012345678", "Indicatif invalide"),  # Allemagne
+    # ❌ Cas invalides - Indicatif invalide (11 chiffres mais mauvais indicatif)
+    ("+1-212-555-1234", False, "12125551234", "Indicatif invalide"),  # USA - 11 chiffres mais indicatif 1
+    ("+44 207946095", False, "44207946095", "Indicatif invalide"),  # UK - 11 chiffres mais indicatif 44
+    ("+493012345678", False, "493012345678", "Longueur incorrecte"),  # Allemagne - 12 chiffres
 ]
 
 
 def run_tests():
     """Exécute la suite de tests"""
     print("\n" + "="*70)
-    print("🧪 TEST SUITE - Validation des numéros")
+    print("[TEST] Suite de validation des numeros")
     print("="*70)
     
     passed = 0
@@ -203,13 +210,13 @@ def run_tests():
         error_ok = erreur == expected_error
         
         if valid_ok and norm_ok and error_ok:
-            status = "✅ PASS"
+            status = "OK"
             passed += 1
         else:
-            status = "❌ FAIL"
+            status = "ERREUR"
             failed += 1
         
-        print(f"\n{status} | Input: {repr(numero_input)}")
+        print(f"\n[{status}] Input: {repr(numero_input)}")
         
         if not valid_ok:
             print(f"  ⚠️  Valid: attendu {expected_valid}, obtenu {est_valide}")
@@ -219,7 +226,7 @@ def run_tests():
             print(f"  ⚠️  Error: attendu {expected_error}, obtenu {erreur}")
     
     print("\n" + "="*70)
-    print(f"📊 RÉSULTATS: {passed} ✅ | {failed} ❌ | Total: {passed + failed}")
+    print("[RESULTATS] " + str(passed) + " OK | " + str(failed) + " ERREURS | Total: " + str(passed + failed))
     print("="*70 + "\n")
     
     return failed == 0
