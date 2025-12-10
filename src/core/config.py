@@ -118,7 +118,7 @@ def ensure_directories():
     """Créer tous les répertoires nécessaires"""
     for key, path in DIRS.items():
         path.mkdir(parents=True, exist_ok=True)
-        print(f"✓ Répertoire {key}: {path}")
+        print(f"Directory {key}: {path}")
 
 def setup_logging():
     """Configurer le logging"""
