@@ -2,16 +2,16 @@
 # Python >= 3.8
 
 # Lecture fichiers
-pandas==2.0.0
-openpyxl==3.10.0
+pandas>=2.0.0
+openpyxl>=3.1.0
 
 # Génération QR codes
-qrcode==7.4.2
-pillow==10.0.0
+qrcode>=7.4.0
+pillow>=10.0.0
 
 # Web (futur Flask/FastAPI)
-flask==3.0.0
-requests==2.31.0
+flask>=3.0.0
+requests>=2.31.0
 
 # Utilitaires
-python-dateutil==2.8.2
+python-dateutil>=2.8.2
