@@ -22,8 +22,17 @@ DIRS = {
     'logs': PROJECT_ROOT / 'logs'
 }
 
-# Chemin de la base de données SQLite
-DATABASE_PATH = DIRS['database'] / 'faxcloud.db'
+# ═══════════════════════════════════════════════════════════════════════════
+# 🗄️ CONFIGURATION MYSQL (WampServer)
+# ═══════════════════════════════════════════════════════════════════════════
+
+MYSQL_CONFIG = {
+    'host': 'localhost',              # WampServer local
+    'user': 'root',                   # Utilisateur par défaut
+    'password': '',                   # Pas de mot de passe par défaut
+    'database': 'faxcloud_analyzer',  # Nom de la base
+    'port': 3306                      # Port MySQL par défaut
+}
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 🔧 CONFIGURATION DE L'APPLICATION
@@ -98,8 +107,7 @@ QR_CONFIG = {
 
 DB_CONFIG = {
     'echo': False,                    # Logs SQL
-    'timeout': 30,                    # Timeout connexion
-    'isolation_level': 'DEFERRED'
+    'autocommit': True                # Auto-commit sur MySQL
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
