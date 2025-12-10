@@ -1,6 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════ */
 /* FaxCloud Analyzer - JavaScript (Drag & Drop + Local Analysis)           */
 /* ═══════════════════════════════════════════════════════════════════════ */
+/* CONFORMITÉ: CONDITIONS_ANALYSE.md (v1.0 - 10 Décembre 2025)            */
+/* ═══════════════════════════════════════════════════════════════════════ */
 
 let currentAnalysis = null;
 const dropZone = document.getElementById('dropZone');
