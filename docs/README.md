@@ -1,32 +1,114 @@
-# 📊 FaxCloud Analyzer - Guide d'utilisation
+# 📊 FaxCloud Analyzer
 
-## 🚀 Démarrage rapide
+**Analyseur professionnel de fichiers FAX avec validation, normalisation et statistiques en temps réel**
 
-### Installation
+> Version: **1.0** | Python 3.8+ | MySQL (WampServer) | Interface Web Drag & Drop
 
+---
+
+## 🎯 Fonctionnalités
+
+- 📤 **Drag & Drop** - Déposez vos fichiers CSV/XLSX facilement
+- 🔍 **Analyse en temps réel** - Normalisation et validation instantanées
+- 📊 **Statistiques complètes** - Globales, par erreur, par utilisateur
+- 🗄️ **MySQL intégré** - Sauvegarde en base de données WampServer
+- 🔗 **QR Code** - Génération et téléchargement PNG
+- 📱 **Interface mobile** - Design responsive (mobile-first)
+- 🚀 **Moteur Python** - CLI complet pour automatisation
+
+---
+
+## 📋 Spécifications
+
+### Conditions d'analyse officielles
+Consultez `CONDITIONS_ANALYSE.md` pour les règles complètes :
+
+- **Normalisation** : +33XX → 33XX, 0XX → 33XX, 0033XX → 33XX
+- **Longueur** : Exactement 11 chiffres
+- **Indicatif** : Doit commencer par 33 (France)
+- **Détection d'erreurs** : 4 types détaillés
+- **Statistiques** : 15+ métriques
+
+### Formats supportés
+
+| Format | Support | Statut |
+|--------|---------|--------|
+| CSV | ✅ Oui | Production |
+| XLSX | ⏳ Partiel | Requiert openpyxl |
+| XLS | ⏳ Partiel | Requiert openpyxl |
+
+---
+
+## 🚀 Installation rapide
+
+### 1. Préalables
+
+- **Python 3.8+** ([Télécharger](https://www.python.org/downloads/))
+- **WampServer** démarré ([Télécharger](https://www.wampserver.com/))
+- **MySQL actif** sur WampServer
+
+### 2. Installation des dépendances
+
+**Option 1 - Script batch (Recommandé)**
 ```bash
-# 1. Créer un répertoire du projet
-mkdir faxcloud-analyzer
-cd faxcloud-analyzer
-
-# 2. Cloner ou copier les fichiers
-
-# 3. Installer les dépendances
-pip install -r requirements.txt
-
-# 4. Initialiser la base de données
-python main.py init
+install.bat
 ```
 
-### Première utilisation
+**Option 2 - Manuel**
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 3. Initialiser MySQL
 
 ```bash
-# Analyser un fichier d'export FaxCloud
-python main.py import \
-    --file exports/sample_export_2024_12.csv \
-    --contract CONTRACT_001 \
-    --start 2024-12-01 \
-    --end 2024-12-31
+python init_mysql.py
+```
+
+Cela va:
+- ✅ Créer la base `faxcloud_analyzer`
+- ✅ Créer les tables `reports` et `fax_entries`
+- ✅ Afficher les statistiques
+
+---
+
+## 💻 Utilisation
+
+### Web Interface (Recommandé)
+
+**Lancer l'application web:**
+```bash
+launch-web.bat
+```
+
+Puis:
+1. Un navigateur s'ouvre sur `http://localhost:8000`
+2. Déposez votre fichier CSV dans la zone de drag & drop
+3. Les résultats s'affichent immédiatement
+4. Téléchargez le QR code
+
+### CLI (Command-Line)
+
+**Analyser un fichier:**
+```bash
+python main.py import --file data/imports/export_2024_12.csv --contract "CLIENT_001" --start 2024-12-01 --end 2024-12-31
+```
+
+**Afficher les rapports:**
+```bash
+python main.py list
+```
+
+**Consulter un rapport:**
+```bash
+python main.py view --report-id "550e8400-e29b-41d4-a716-446655440000"
+```
+
+**Initialiser la base:**
+```bash
+python main.py init
 ```
 
 ---
@@ -35,437 +117,223 @@ python main.py import \
 
 ```
 faxcloud-analyzer/
-├── main.py                    # Point d'entrée
-├── config.py                  # Configuration globale
-├── db.py                      # Gestion base de données
-├── importer.py                # Import CSV/XLSX
-├── analyzer.py                # Analyse des données
-├── reporter.py                # Génération rapports
-├── requirements.txt           # Dépendances Python
-│
+├── src/
+│   └── core/
+│       ├── config.py                 # Configuration MySQL
+│       ├── db.py                     # Gestion base de données
+│       ├── validation_rules.py       # Règles de validation (17 tests ✅)
+│       ├── analyzer.py               # Moteur d'analyse
+│       ├── importer.py               # Lecteur CSV/XLSX
+│       ├── reporter.py               # Génération rapports
+│       └── __init__.py
+├── web/
+│   ├── app/
+│   │   ├── app.html                  # Interface web
+│   │   ├── app.css                   # Styles responsive
+│   │   └── app.js                    # Moteur d'analyse JavaScript
+│   ├── server.py                     # Serveur HTTP
+│   ├── index.html                    # Ancien dashboard (optionnel)
+│   └── style.css
 ├── data/
-│   ├── imports/              # Fichiers importés
-│   ├── reports/              # Rapports JSON
-│   └── reports_qr/           # QR codes PNG
-│
-├── database/
-│   └── faxcloud.db          # Base SQLite
-│
-├── exports/                  # Exports FaxCloud sources
-│   └── sample_export_2024_12.csv
-│
-├── web/                      # Interface web (futur)
-│   ├── index.html
-│   ├── report.html
-│   ├── style.css
-│   └── script.js
-│
-└── logs/
-    └── analyzer.log         # Fichier de logs
+│   ├── imports/                      # Fichiers à analyser
+│   ├── reports/                      # Rapports JSON
+│   └── reports_qr/                   # Codes QR PNG
+├── database/                         # Fichiers base données (unused - MySQL)
+├── docs/
+│   ├── CONDITIONS_ANALYSE.md         # Spécification officielle
+│   ├── DOCUMENTATION.md              # Doc complète
+│   ├── ARCHITECTURE.md               # Architecture technique
+│   └── ...
+├── main.py                           # Point d'entrée CLI
+├── init_mysql.py                     # Script initialisation MySQL
+├── install.bat                       # Installation dépendances
+├── launch-web.bat                    # Lancement web
+├── requirements.txt                  # Dépendances Python
+├── README.md                         # Ce fichier
+├── CONDITIONS_ANALYSE.md             # Conditions officielles
+└── IMPLEMENTATION_STATUS.md          # Statut de conformité
 ```
 
 ---
 
-## 📖 Commandes disponibles
+## 🗄️ Configuration MySQL
 
-### 1. Initialiser le projet
+### Paramètres par défaut
 
-Crée la base de données et tous les répertoires nécessaires.
+| Paramètre | Valeur |
+|-----------|--------|
+| Hôte | localhost |
+| Port | 3306 |
+| Utilisateur | root |
+| Mot de passe | (vide) |
+| Base | faxcloud_analyzer |
 
-```bash
-python main.py init
-```
+### Personnalisation
 
-**Output**:
-```
-🔧 Initialisation du projet...
-✓ Répertoire imports: .../data/imports
-✓ Répertoire reports_json: .../data/reports
-✓ Répertoire reports_qr: .../data/reports_qr
-✓ Répertoire exports: .../exports
-✓ Répertoire database: .../database
-✓ Répertoire logs: .../logs
-✓ Base de données initialisée: .../database/faxcloud.db
-✅ Projet initialisé avec succès
-```
-
----
-
-### 2. Importer et analyser un fichier
-
-Traite un export FaxCloud complet (import → analyse → rapport).
-
-```bash
-python main.py import \
-    --file path/to/export.csv \
-    --contract CONTRACT_001 \
-    --start 2024-12-01 \
-    --end 2024-12-31
-```
-
-**Paramètres**:
-- `--file`: Chemin du fichier CSV ou XLSX (**requis**)
-- `--contract`: ID du contrat (défaut: CONTRACT_001)
-- `--start`: Date de début (défaut: 2024-01-01)
-- `--end`: Date de fin (défaut: 2024-12-31)
-
-**Output complet**:
-```
-======================================================================
-TRAITEMENT EXPORT: CONTRACT_001 (2024-12-01 à 2024-12-31)
-======================================================================
-
-📥 ÉTAPE 1: IMPORTATION
-----------------------------------------------------------------------
-✓ Importation réussie: 20 lignes
-
-📊 ÉTAPE 2: ANALYSE
-----------------------------------------------------------------------
-✓ Analyse complète:
-  • Total FAX: 20
-  • Envoyés: 12, Reçus: 8
-  • Pages: 97
-  • Erreurs: 3 (15.00%)
-  • Taux réussite: 85.00%
-
-📝 ÉTAPE 3: RAPPORT ET QR CODE
-----------------------------------------------------------------------
-✓ Rapport généré avec succès: a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-  • ID: a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-  • URL: /reports/a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-  • QR Code: reports_qr/a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6.png
-
-📋 RÉSUMÉ
-----------------------------------------------------------------------
-╔════════════════════════════════════════════════════════════════╗
-║                   RAPPORT FaxCloud                            ║
-╚════════════════════════════════════════════════════════════════╝
-
-ID Rapport:           a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-Contrat:              CONTRACT_001
-Période:              2024-12-01 à 2024-12-31
-Généré:               2024-12-10T17:00:00
-
-─────────────────────────────────────────────────────────────────
-
-STATISTIQUES GLOBALES
-
-Total FAX:            20
-  ├─ Envoyés:        12
-  └─ Reçus:          8
-
-Pages totales:        97
-
-Erreurs:              3
-Taux de réussite:     85.00%
-
-─────────────────────────────────────────────────────────────────
-
-ERREURS PAR TYPE
-
-Numéros vides:        1
-Longueur incorrecte:  1
-Ne commence pas 33:   0
-Caractères invalides: 1
-
-─────────────────────────────────────────────────────────────────
-
-UTILISATEURS
-
-Total utilisateurs:   4
-
-Envois par utilisateur:
-  • Jean Dupont: 5 FAX (100.0% réussite)
-  • Marie Martin: 5 FAX (80.0% réussite)
-  • Pierre Leblanc: 5 FAX (80.0% réussite)
-  • Sophie Dupuis: 5 FAX (80.0% réussite)
-
-═══════════════════════════════════════════════════════════════
-
-======================================================================
-✅ TRAITEMENT RÉUSSI
-======================================================================
-
-✅ Rapport généré: a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-```
-
----
-
-### 3. Lister tous les rapports
-
-Affiche la liste de tous les rapports générés.
-
-```bash
-python main.py list
-```
-
-**Output**:
-```
-📋 Liste des rapports
-----------------------------------------------------------------------
-Total: 3 rapport(s)
-
-1. a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-   Contrat: CONTRACT_001
-   Généré: 2024-12-10T17:00:00
-   FAX: 20 (Erreurs: 3, Réussite: 85.0%)
-
-2. b2c3d4e5-f6g7-h8i9-j0k1-l2m3n4o5p6a1
-   Contrat: CONTRACT_002
-   Généré: 2024-12-09T16:30:00
-   FAX: 150 (Erreurs: 12, Réussite: 92.0%)
-
-3. c3d4e5f6-g7h8-i9j0-k1l2-m3n4o5p6a1b2
-   Contrat: CONTRACT_001
-   Généré: 2024-12-08T15:00:00
-   FAX: 85 (Erreurs: 5, Réussite: 94.1%)
-```
-
----
-
-### 4. Consulter un rapport détaillé
-
-Affiche les détails complets d'un rapport avec les erreurs.
-
-```bash
-python main.py view --report-id a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-```
-
-**Output**:
-```
-📖 Affichage rapport: a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-----------------------------------------------------------------------
-
-[Affiche le résumé complet + les erreurs détaillées]
-
-⚠️  ENTRÉES AVEC ERREURS:
-
-  • FAX003 (Pierre Leblanc)
-    Numéro: INVALID
-    Erreurs: Caractères invalides détectés
-
-  • FAX012 (Jean Dupont)
-    Numéro: SHORT
-    Erreurs: Longueur incorrecte: 5 au lieu de 11
-
-  • FAX017 (Marie Martin)
-    Numéro: 
-    Erreurs: Numéro vide
-```
-
----
-
-## 📊 Fichiers générés
-
-### 1. Rapport JSON
-
-**Localisation**: `data/reports/{report_id}.json`
-
-**Exemple**:
-```json
-{
-  "report_id": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6",
-  "timestamp": "2024-12-10T17:00:00.123456",
-  "contract_id": "CONTRACT_001",
-  "date_debut": "2024-12-01",
-  "date_fin": "2024-12-31",
-  "statistics": {
-    "total_fax": 20,
-    "fax_envoyes": 12,
-    "fax_recus": 8,
-    "pages_totales": 97,
-    "erreurs_totales": 3,
-    "taux_reussite": 85.0,
-    "erreurs_par_type": {
-      "numero_vide": 1,
-      "longueur_incorrecte": 1,
-      "ne_commence_pas_33": 0,
-      "caracteres_invalides": 1
-    },
-    "envois_par_utilisateur": {
-      "Jean Dupont": 5,
-      "Marie Martin": 5,
-      "Pierre Leblanc": 5,
-      "Sophie Dupuis": 5
-    },
-    "erreurs_par_utilisateur": {
-      "Jean Dupont": 0,
-      "Marie Martin": 1,
-      "Pierre Leblanc": 1,
-      "Sophie Dupuis": 1
-    }
-  },
-  "entries": [
-    {
-      "id": "entry-uuid-1",
-      "fax_id": "FAX001",
-      "utilisateur": "Jean Dupont",
-      "type": "send",
-      "numero_original": "0622334455",
-      "numero_normalise": "33622334455",
-      "valide": true,
-      "pages": 5,
-      "datetime": "2024-12-10T14:30:00",
-      "erreurs": []
-    }
-  ],
-  "qr_code_url": "/reports_qr/a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6.png",
-  "report_url": "/reports/a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6"
+Éditez `src/core/config.py`:
+```python
+MYSQL_CONFIG = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'votreMotdePasse',  # Si défini
+    'database': 'faxcloud_analyzer',
+    'port': 3306
 }
 ```
 
-### 2. QR Code PNG
+### Accès phpMyAdmin
 
-**Localisation**: `data/reports_qr/{report_id}.png`
-
-**Contenu encodé**: URL du rapport
-```
-http://localhost:8000/reports/a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6
-```
-
-### 3. Base de données SQLite
-
-**Localisation**: `database/faxcloud.db`
-
-**Tables**:
-- `reports`: Rapports principaux
-- `fax_entries`: Entrées FAX détaillées
+- URL: `http://localhost/phpmyadmin`
+- Base: `faxcloud_analyzer`
 
 ---
 
-## 🔍 Règles de validation des numéros
+## 📊 Statistiques produites
 
-### Normalisation
+### Globales
+- Total FAX envoyés (SF)
+- Total FAX reçus (RF)
+- Total pages envoyées/reçues
+- Taux de réussite (%)
 
-| Entrée | Résultat |
-|--------|----------|
-| `0622334455` | `33622334455` ✓ |
-| `+33622334455` | `33622334455` ✓ |
-| `33 6 22 33 44 55` | `33622334455` ✓ |
-| `33622334455` | `33622334455` ✓ |
-| `INVALID` | `` ✗ |
-| `` | `` ✗ |
+### Par erreur
+- Histogramme des 4 types d'erreurs
+- Répartition en %
 
-### Validation
-
-**Règles**:
-1. Doit contenir exactement 11 chiffres
-2. Doit commencer par 33 (code France)
-3. Doit contenir uniquement des chiffres
-
-**Erreurs détectées**:
-- ✗ Numéro vide
-- ✗ Longueur incorrecte
-- ✗ Ne commence pas par 33
-- ✗ Caractères invalides
+### Par utilisateur
+- Nombre d'envois
+- Nombre d'erreurs
+- Taux de réussite
+- Pages par utilisateur
 
 ---
 
-## 📊 Format CSV/XLSX attendu
+## 🧪 Tests
 
-### Colonnes requises
+### Valider les règles de normalisation
 
-| Index | Nom | Exemple | Type |
-|-------|-----|---------|------|
-| A | Fax ID | FAX001 | str |
-| B | Utilisateur | Jean Dupont | str |
-| C | Revendeur | TAKELEAD | str |
-| D | Mode | SF/RF | str |
-| E | Email | jean@example.com | str |
-| F | Date/Heure | 2024-12-10 14:30:00 | datetime |
-| G | Numéro envoi | 0133445566 | str |
-| H | Numéro appelé | 0622334455 | str |
-| I | Appel intl | Non/Oui | str |
-| J | Appel interne | Oui/Non | str |
-| K | Pages | 5 | int |
-| L | Durée (sec) | 120 | int |
-| M | Pages facturées | 5 | int |
-| N | Type facturation | Standard | str |
+```bash
+python src/core/validation_rules.py
+```
 
-### Exemple de fichier
+Résultat attendu:
+```
+[RESULTATS] 17 OK | 0 ERREURS | Total: 17
+```
 
-Voir `exports/sample_export_2024_12.csv`
+### Test rapide
+
+```python
+from src.core.validation_rules import analyze_number
+
+# Test
+est_valide, numero_norm, erreur = analyze_number("+33 1 45 22 11 34")
+print(est_valide)      # → True
+print(numero_norm)     # → "33145221134"
+print(erreur)          # → None
+```
+
+---
+
+## 🔴 Types d'erreurs
+
+| Erreur | Description | Exemple |
+|--------|-------------|---------|
+| **Numéro vide** | Champ vide ou caractères non-numériques | "" ou "---" |
+| **Longueur incorrecte** | ≠ 11 chiffres | "0145221134" (10) |
+| **Indicatif invalide** | Ne commence pas par 33 | "+1-212-555-1234" |
+| **Format invalide** | Caractères illisibles/corrompus | "\x00\x01\x02" |
 
 ---
 
 ## 🐛 Dépannage
 
-### Problème: "qrcode not found"
+### Erreur: "Access denied for user 'root'@'localhost'"
 
-**Solution**: Installer les dépendances
+1. Vérifiez que WampServer MySQL est **vert** (démarré)
+2. Vérifiez le mot de passe dans `src/core/config.py`
+3. Testez: `mysql -h localhost -u root`
+
+### Erreur: "Can't connect to MySQL server"
+
+1. Lancez WampServer
+2. Vérifiez que MySQL écoute sur 127.0.0.1:3306
+3. Attendez 10 secondes après le démarrage
+
+### Erreur: "Base faxcloud_analyzer n'existe pas"
+
 ```bash
-pip install -r requirements.txt
+python init_mysql.py
 ```
 
-### Problème: "Fichier non trouvé"
+### Fichier CSV non reconnu
 
-**Solution**: Vérifier le chemin du fichier
-```bash
-# Afficher les fichiers disponibles
-dir exports\
-```
-
-### Problème: Base de données verrouillée
-
-**Solution**: Supprimer et réinitialiser
-```bash
-del database\faxcloud.db
-python main.py init
-```
+- Format: UTF-8 sans BOM
+- Séparateur: Virgule (,)
+- Colonnes: 14 exactement (A-N)
 
 ---
 
-## 🚀 Utilisation programmée
+## 📚 Documentation complète
 
-```python
-from main import process_export
-
-# Traiter un export
-result = process_export(
-    file_path="exports/sample.csv",
-    contract_id="CONTRACT_001",
-    date_debut="2024-12-01",
-    date_fin="2024-12-31"
-)
-
-if result["success"]:
-    print(f"Rapport: {result['report_id']}")
-    print(f"QR Code: {result['qr_path']}")
-else:
-    print(f"Erreur: {result['message']}")
-```
+- **CONDITIONS_ANALYSE.md** - Spécification officielle des règles
+- **IMPLEMENTATION_STATUS.md** - Statut de conformité (17/17 tests ✅)
+- **ARCHITECTURE.md** - Architecture technique complète
+- **DOCUMENTATION.md** - Documentation détaillée (CLI, API, BD)
+- **MYSQL_SETUP.md** - Configuration MySQL avancée
+- **QUICK_START.md** - Guide de démarrage rapide
 
 ---
 
-## 📝 Fichiers de logs
+## 🤝 Contribution
 
-Tous les événements sont enregistrés dans `logs/analyzer.log`:
+Pour signaler un bug ou proposer une amélioration:
 
-```
-[2024-12-10 17:00:00] INFO - __main__ - TRAITEMENT EXPORT: CONTRACT_001
-[2024-12-10 17:00:01] INFO - importer - Lecture du fichier: exports/sample.csv
-[2024-12-10 17:00:02] INFO - analyzer - Début analyse: 20 lignes
-[2024-12-10 17:00:02] INFO - analyzer - ✓ Analyse complète: 20 FAX, 3 erreurs, 85.00% réussite
-[2024-12-10 17:00:03] INFO - reporter - Génération rapport: a1b2c3d4-e5f6-...
-```
-
----
-
-## 🔮 Prochaines étapes
-
-- [ ] Interface web interactive (HTML/CSS/JS)
-- [ ] API REST Flask/FastAPI
-- [ ] Intégration Asterisk
-- [ ] Export PDF des rapports
-- [ ] Graphiques statistiques
-- [ ] Authentification utilisateurs
-- [ ] Notifications email
+1. Consultez `CONDITIONS_ANALYSE.md`
+2. Vérifiez les tests: `python src/core/validation_rules.py`
+3. Créez un issue avec:
+   - Description du problème
+   - Fichier d'exemple
+   - Comportement attendu vs obtenu
 
 ---
 
-## 📞 Support
+## 📝 Licence
 
-Pour toute question ou bug: contact@takelead.fr
+Propriétaire - FaxCloud Analyzer v1.0 (Décembre 2025)
 
-**Version**: 1.0.0
-**Dernière mise à jour**: 2024-12-10
+---
+
+## 🎯 Roadmap
+
+| Version | Statut | Fonctionnalités |
+|---------|--------|---|
+| **1.0** | ✅ Actuelle | Drag & Drop, Analyse locale, MySQL, QR Code |
+| **1.1** | 🔜 Très proche | Export PDF, Notifications email |
+| **2.0** | 📅 Planifiée | Intégration Asterisk, API REST complète |
+| **3.0** | 📅 Futur | Dashboard temps réel, Webhooks |
+
+---
+
+## ❓ FAQ
+
+**Q: Puis-je utiliser sans MySQL?**
+A: Actuellement non, MySQL est requis pour la sauvegarde des résultats.
+
+**Q: Les données sont-elles sécurisées?**
+A: Oui, l'analyse se fait localement. Seuls les résultats sont sauvegardés en MySQL.
+
+**Q: Combien de fichiers puis-je analyser?**
+A: Limitation: taille fichier < 10MB, nombre d'entrées < 100 000 (pour performance).
+
+**Q: Comment exporter les résultats?**
+A: JSON via l'API ou téléchargement QR. Export PDF prévu en v1.1.
+
+**Q: Asterisk est inclus?**
+A: Non, c'est une fonctionnalité planifiée pour v2.0.
+
+---
+
+**Support:** Consultez les documents `docs/` ou les commentaires dans le code.
+
+**Dernière mise à jour:** 10 décembre 2025 | **v1.0 - Production Ready**
