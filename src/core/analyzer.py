@@ -1,8 +1,8 @@
 """
 Module d'analyse des données FaxCloud
 Responsabilités:
-- Normalisation des numéros de téléphone
-- Validation des numéros
+- Normalisation des numéros de téléphone (via validation_rules)
+- Validation des numéros (via validation_rules)
 - Analyse complète des données
 - Génération des statistiques
 """
@@ -12,21 +12,25 @@ import logging
 import uuid
 from typing import Dict, List, Tuple
 from datetime import datetime
+import validation_rules
 
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# NORMALISATION DES NUMÉROS
+# NORMALISATION DES NUMÉROS (déléguée à validation_rules)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def normalize_number(raw_number: str) -> str:
     """
     Normalise un numéro de téléphone
     
+    Utilise la logique officielle de validation_rules.py
+    
     Exemples:
         "0622334455" → "33622334455"
         "+33622334455" → "33622334455"
         "33 6 22 33 44 55" → "33622334455"
+        "0033622334455" → "33622334455"
         "INVALID" → ""
         "" → ""
     
@@ -36,84 +40,33 @@ def normalize_number(raw_number: str) -> str:
     Returns:
         Numéro normalisé (11 chiffres commençant par 33)
     """
-    # Vérifier si vide ou None
-    if not raw_number or (isinstance(raw_number, str) and not raw_number.strip()):
-        return ""
-    
-    raw_number = str(raw_number).strip()
-    
-    # Supprimer tous les caractères non-numériques
-    normalized = re.sub(r"\D", "", raw_number)
-    
-    # Vérifier si vide après nettoyage
-    if not normalized:
-        return ""
-    
-    # Gérer les formats
-    if normalized.startswith("+33"):
-        normalized = "33" + normalized[3:]
-    elif normalized.startswith("0") and len(normalized) > 1:
-        # Format local français: 0622... → 33622...
-        normalized = "33" + normalized[1:]
-    elif normalized.startswith("33"):
-        # Déjà au format international
-        pass
-    
-    return normalized
+    return validation_rules.normalize_number(raw_number)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VALIDATION DES NUMÉROS
+# VALIDATION DES NUMÉROS (déléguée à validation_rules)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def validate_number(normalized: str) -> Dict:
+def validate_number(numero_brut: str) -> Tuple[bool, str]:
     """
-    Valide un numéro normalisé
+    Valide un numéro (brut)
+    
+    Utilise la logique officielle de validation_rules.py
     
     Règles:
+        - Normalisation: supprime caractères non-numériques
+        - Conversion: 0X → 33X, 0033X → 33X
         - Longueur exacte: 11 chiffres
         - Commence par: 33
-        - Contient: uniquement des chiffres
     
     Args:
-        normalized: Numéro normalisé
+        numero_brut: Numéro brut avec caractères spéciaux
     
     Returns:
-        {
-            "is_valid": bool,
-            "normalized": str,
-            "errors": List[str]
-        }
+        Tuple[bool, str]: (est_valide, message_erreur)
     """
-    errors = []
-    
-    # Vérifier si vide
-    if not normalized:
-        errors.append("Numéro vide")
-        return {
-            "is_valid": False,
-            "normalized": "",
-            "errors": errors
-        }
-    
-    # Vérifier la longueur
-    length = len(normalized)
-    if length != 11:
-        errors.append(f"Longueur incorrecte: {length} au lieu de 11")
-    
-    # Vérifier qu'il commence par 33
-    if not normalized.startswith("33"):
-        errors.append("Ne commence pas par 33")
-    
-    # Vérifier que contient que des chiffres
-    if not normalized.isdigit():
-        errors.append("Caractères invalides détectés")
-    
-    return {
-        "is_valid": len(errors) == 0,
-        "normalized": normalized,
-        "errors": errors
-    }
+    est_valide, numero_norm, erreur = validation_rules.analyze_number(numero_brut)
+    return est_valide, erreur
 
 
 # ═══════════════════════════════════════════════════════════════════════════
