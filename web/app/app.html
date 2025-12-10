@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaxCloud Analyzer - Drag & Drop</title>
+    <link rel="stylesheet" href="app.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>📊 FaxCloud Analyzer</h1>
+                <p>Analyseur d'exports FaxCloud - Drag & Drop</p>
+            </div>
+        </header>
+
+        <!-- Upload Section -->
+        <section id="uploadSection" class="upload-section">
+            <div class="drop-zone" id="dropZone">
+                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <h2>Déposer votre fichier ici</h2>
+                <p>ou cliquez pour sélectionner</p>
+                <p class="file-info">Fichier accepté: CSV ou XLSX</p>
+                <input type="file" id="fileInput" accept=".csv,.xlsx" style="display:none;">
+            </div>
+            <div id="uploadStatus" class="status-message" style="display:none;"></div>
+        </section>
+
+        <!-- Loading Section -->
+        <section id="loadingSection" class="loading-section" style="display:none;">
+            <div class="spinner"></div>
+            <p>Analyse en cours... <span id="loadingText">Lecture du fichier</span></p>
+        </section>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="results-section" style="display:none;">
+            <div class="results-header">
+                <h2>Résultats d'analyse</h2>
+                <button class="btn btn-secondary" onclick="resetAnalysis()">← Nouveau fichier</button>
+            </div>
+
+            <!-- Stats principales -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total FAX</div>
+                    <div class="stat-value" id="resultTotalFax">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Envoyés</div>
+                    <div class="stat-value" id="resultSent">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Reçus</div>
+                    <div class="stat-value" id="resultReceived">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Taux Réussite</div>
+                    <div class="stat-value" id="resultSuccessRate">0%</div>
+                </div>
+            </div>
+
+            <!-- Details -->
+            <div class="details-grid">
+                <div class="detail-card">
+                    <h3>📊 Statistiques</h3>
+                    <div id="statsDetails" class="detail-content">
+                        <p>Pages totales: <strong id="detailPages">0</strong></p>
+                        <p>Erreurs totales: <strong id="detailErrors">0</strong></p>
+                        <p>Utilisateurs: <strong id="detailUsers">0</strong></p>
+                    </div>
+                </div>
+
+                <div class="detail-card">
+                    <h3>👥 Par Utilisateur</h3>
+                    <div id="userDetails" class="detail-content">
+                        <!-- Détails utilisateurs dynamiques -->
+                    </div>
+                </div>
+
+                <div class="detail-card">
+                    <h3>⚠️ Erreurs Détectées</h3>
+                    <div id="errorDetails" class="detail-content">
+                        <!-- Erreurs dynamiques -->
+                    </div>
+                </div>
+
+                <div class="detail-card">
+                    <h3>🔗 QR Code Rapport</h3>
+                    <div id="qrContainer" class="qr-container">
+                        <canvas id="qrCanvas" width="200" height="200"></canvas>
+                        <div class="qr-info">
+                            <p id="reportId" class="report-id">Report ID: <code>-</code></p>
+                            <button class="btn btn-success" onclick="downloadQRCode()">📥 Télécharger QR</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Raw Data Table -->
+            <div class="detail-card detail-full">
+                <h3>📋 Détail des entrées (premiers 20)</h3>
+                <div id="tableContainer" class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Utilisateur</th>
+                                <th>Mode</th>
+                                <th>Numéro Original</th>
+                                <th>Numéro Normalisé</th>
+                                <th>Valid?</th>
+                                <th>Pages</th>
+                                <th>Erreurs</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody">
+                            <!-- Données dynamiques -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>FaxCloud Analyzer v1.0.0 | © 2024 TAKELEAD</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
