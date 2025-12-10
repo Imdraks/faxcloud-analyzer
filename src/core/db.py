@@ -1,403 +1,465 @@
 """
-Module de gestion de la base de données SQLite
+Module de base de données - Opérations MySQL
 Responsabilités:
-- Initialisation de la base de données
+- Connexion à MySQL (WampServer)
+- Création et gestion des tables
 - Insertion des rapports et entrées
-- Consultation des données
+- Requêtes de consultation
 """
 
-import sqlite3
-import json
 import logging
+import json
+from typing import Dict, List, Optional
 from pathlib import Path
-from typing import List, Dict, Optional
-from datetime import datetime
+
+try:
+    import mysql.connector
+    from mysql.connector import Error as MySQLError
+    MYSQL_AVAILABLE = True
+except ImportError:
+    MYSQL_AVAILABLE = False
+    MySQLError = None
+
 import config
 
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# INITIALISATION
+# GESTION CONNEXION
 # ═══════════════════════════════════════════════════════════════════════════
 
-def init_database(db_path: Path = None) -> None:
+def get_connection():
     """
-    Initialise la base de données SQLite
-    Crée les tables si elles n'existent pas
+    Obtient une connexion à la base de données MySQL
+    
+    Returns:
+        Connexion MySQL ou None si erreur
     """
-    if db_path is None:
-        db_path = config.DATABASE_PATH
-    
-    # Créer le dossier s'il n'existe pas
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    conn = sqlite3.connect(str(db_path))
-    cursor = conn.cursor()
+    if not MYSQL_AVAILABLE:
+        logger.warning("⚠️  mysql-connector-python non installé")
+        return None
     
     try:
+        conn = mysql.connector.connect(
+            host=config.MYSQL_CONFIG['host'],
+            user=config.MYSQL_CONFIG['user'],
+            password=config.MYSQL_CONFIG['password'],
+            database=config.MYSQL_CONFIG['database'],
+            port=config.MYSQL_CONFIG['port']
+        )
+        logger.debug("✓ Connexion MySQL établie")
+        return conn
+    
+    except MySQLError as e:
+        logger.error(f"✗ Erreur connexion MySQL: {e}")
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INITIALISATION BASE DE DONNÉES
+# ═══════════════════════════════════════════════════════════════════════════
+
+def init_database():
+    """
+    Crée les tables nécessaires si elles n'existent pas
+    """
+    if not MYSQL_AVAILABLE:
+        logger.warning("⚠️  MySQL non disponible - initialisation ignorée")
+        return
+    
+    try:
+        conn = get_connection()
+        if not conn:
+            logger.error("✗ Impossible de se connecter à MySQL")
+            return
+        
+        cursor = conn.cursor()
+        
+        logger.info("🔧 Initialisation base de données...")
+        
         # Table des rapports
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS reports (
-                id TEXT PRIMARY KEY,
-                date_rapport TEXT NOT NULL,
-                contract_id TEXT NOT NULL,
-                date_debut TEXT NOT NULL,
-                date_fin TEXT NOT NULL,
-                fichier_source TEXT,
-                total_fax INTEGER NOT NULL,
-                fax_envoyes INTEGER NOT NULL,
-                fax_recus INTEGER NOT NULL,
-                pages_totales INTEGER NOT NULL,
-                erreurs_totales INTEGER NOT NULL,
-                taux_reussite REAL NOT NULL,
-                qr_path TEXT NOT NULL,
-                url_rapport TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                UNIQUE(id)
+                id VARCHAR(36) PRIMARY KEY,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                contract_id VARCHAR(255),
+                date_debut DATE,
+                date_fin DATE,
+                total_fax INT DEFAULT 0,
+                fax_envoyes INT DEFAULT 0,
+                fax_recus INT DEFAULT 0,
+                pages_totales INT DEFAULT 0,
+                pages_envoyees INT DEFAULT 0,
+                pages_recues INT DEFAULT 0,
+                erreurs_totales INT DEFAULT 0,
+                taux_reussite DECIMAL(5, 2) DEFAULT 0,
+                qr_path VARCHAR(500),
+                json_data LONGTEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_contract (contract_id),
+                INDEX idx_timestamp (timestamp)
             )
         """)
+        logger.info("✓ Table 'reports' créée/vérifiée")
         
-        # Table des entrées FAX
+        # Table des entrées
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS fax_entries (
-                id TEXT PRIMARY KEY,
-                report_id TEXT NOT NULL,
-                fax_id TEXT NOT NULL,
-                utilisateur TEXT NOT NULL,
-                type TEXT NOT NULL,
-                numero_original TEXT,
-                numero_normalise TEXT,
-                valide BOOLEAN NOT NULL,
-                pages INTEGER NOT NULL,
-                datetime TEXT NOT NULL,
+            CREATE TABLE IF NOT EXISTS entries (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                report_id VARCHAR(36) NOT NULL,
+                fax_id VARCHAR(255),
+                utilisateur VARCHAR(255),
+                mode VARCHAR(2),
+                numero_original VARCHAR(255),
+                numero_normalise VARCHAR(11),
+                pages INT DEFAULT 0,
+                valide BOOLEAN DEFAULT FALSE,
                 erreurs TEXT,
-                FOREIGN KEY (report_id) REFERENCES reports(id),
-                UNIQUE(id)
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE,
+                INDEX idx_report (report_id),
+                INDEX idx_utilisateur (utilisateur),
+                INDEX idx_numero (numero_normalise)
             )
         """)
+        logger.info("✓ Table 'entries' créée/vérifiée")
         
-        # Indexes
+        # Table des statistiques par utilisateur
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_reports_contract 
-            ON reports(contract_id)
+            CREATE TABLE IF NOT EXISTS user_stats (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                report_id VARCHAR(36) NOT NULL,
+                utilisateur VARCHAR(255),
+                total_envois INT DEFAULT 0,
+                erreurs INT DEFAULT 0,
+                pages INT DEFAULT 0,
+                taux_reussite DECIMAL(5, 2) DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE,
+                INDEX idx_report (report_id),
+                INDEX idx_utilisateur (utilisateur)
+            )
         """)
+        logger.info("✓ Table 'user_stats' créée/vérifiée")
         
+        # Table des statistiques d'erreurs
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_reports_created 
-            ON reports(created_at)
+            CREATE TABLE IF NOT EXISTS error_stats (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                report_id VARCHAR(36) NOT NULL,
+                type_erreur VARCHAR(255),
+                count INT DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE,
+                INDEX idx_report (report_id),
+                INDEX idx_type (type_erreur)
+            )
         """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_fax_entries_report 
-            ON fax_entries(report_id)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_fax_entries_utilisateur 
-            ON fax_entries(utilisateur)
-        """)
+        logger.info("✓ Table 'error_stats' créée/vérifiée")
         
         conn.commit()
-        logger.info(f"✓ Base de données initialisée: {db_path}")
+        cursor.close()
+        conn.close()
         
+        logger.info("✅ Initialisation base de données réussie")
+    
     except Exception as e:
         logger.error(f"✗ Erreur initialisation base de données: {e}")
-        raise
-    finally:
-        cursor.close()
-        conn.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# INSERTION
+# INSERTION DONNÉES
 # ═══════════════════════════════════════════════════════════════════════════
 
-def insert_report_to_db(
-    report_id: str,
-    report_json: Dict,
-    qr_path: str,
-    db_path: Path = None
-) -> bool:
+def insert_report_to_db(report_id: str, report_json: Dict, qr_path: str = "") -> bool:
     """
-    Insère un rapport et ses entrées en base de données
-    """
-    if db_path is None:
-        db_path = config.DATABASE_PATH
+    Insère un rapport complet en base de données
     
-    conn = sqlite3.connect(str(db_path))
-    cursor = conn.cursor()
+    Args:
+        report_id: UUID du rapport
+        report_json: Données JSON du rapport
+        qr_path: Chemin du QR code (optionnel)
+    
+    Returns:
+        True si succès, False sinon
+    """
+    if not MYSQL_AVAILABLE:
+        logger.warning("⚠️  MySQL non disponible - insertion ignorée")
+        return False
     
     try:
-        # Extraire les statistiques
-        stats = report_json.get('statistics', {})
+        conn = get_connection()
+        if not conn:
+            logger.warning("⚠️  Impossible de se connecter à MySQL")
+            return False
         
-        # Insérer le rapport principal
+        cursor = conn.cursor()
+        
+        stats = report_json.get("statistics", {})
+        
+        # Insérer le rapport
         cursor.execute("""
             INSERT INTO reports (
-                id, date_rapport, contract_id, date_debut, date_fin,
-                total_fax, fax_envoyes, fax_recus, pages_totales,
-                erreurs_totales, taux_reussite, qr_path, url_rapport,
-                created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                id, contract_id, date_debut, date_fin,
+                total_fax, fax_envoyes, fax_recus,
+                pages_totales, pages_envoyees, pages_recues,
+                erreurs_totales, taux_reussite, qr_path, json_data
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             report_id,
-            report_json.get('timestamp', datetime.now().isoformat()),
-            report_json.get('contract_id', ''),
-            report_json.get('date_debut', ''),
-            report_json.get('date_fin', ''),
-            stats.get('total_fax', 0),
-            stats.get('fax_envoyes', 0),
-            stats.get('fax_recus', 0),
-            stats.get('pages_totales', 0),
-            stats.get('erreurs_totales', 0),
-            stats.get('taux_reussite', 0.0),
+            report_json.get("contract_id", ""),
+            report_json.get("date_debut", ""),
+            report_json.get("date_fin", ""),
+            stats.get("total_fax", 0),
+            stats.get("fax_envoyes", 0),
+            stats.get("fax_recus", 0),
+            stats.get("pages_totales", 0),
+            stats.get("pages_envoyees", 0),
+            stats.get("pages_recues", 0),
+            stats.get("erreurs_totales", 0),
+            stats.get("taux_reussite", 0),
             qr_path,
-            report_json.get('report_url', ''),
-            datetime.now().isoformat()
+            json.dumps(report_json, ensure_ascii=False)
         ))
         
-        # Insérer les entrées FAX
-        for entry in report_json.get('entries', []):
-            erreurs_json = json.dumps(entry.get('erreurs', []))
-            
+        logger.info(f"✓ Rapport {report_id} inséré en base")
+        
+        # Insérer les entrées
+        entries = report_json.get("entries", [])
+        for entry in entries:
             cursor.execute("""
-                INSERT INTO fax_entries (
-                    id, report_id, fax_id, utilisateur, type,
-                    numero_original, numero_normalise, valide, pages,
-                    datetime, erreurs
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO entries (
+                    report_id, fax_id, utilisateur, mode,
+                    numero_original, numero_normalise, pages,
+                    valide, erreurs
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                entry.get('id', ''),
                 report_id,
-                entry.get('fax_id', ''),
-                entry.get('utilisateur', ''),
-                entry.get('type', ''),
-                entry.get('numero_original', ''),
-                entry.get('numero_normalise', ''),
-                entry.get('valide', False),
-                entry.get('pages', 0),
-                entry.get('datetime', ''),
-                erreurs_json
+                entry.get("fax_id", ""),
+                entry.get("utilisateur", ""),
+                entry.get("mode", ""),
+                entry.get("numero_original", ""),
+                entry.get("numero_normalise", ""),
+                entry.get("pages", 0),
+                entry.get("valide", False),
+                "; ".join(entry.get("erreurs", []))
             ))
         
+        logger.info(f"✓ {len(entries)} entrées insérées")
+        
+        # Insérer les statistiques par utilisateur
+        envois_par_utilisateur = stats.get("envois_par_utilisateur", {})
+        erreurs_par_utilisateur = stats.get("erreurs_par_utilisateur", {})
+        pages_par_utilisateur = stats.get("pages_par_utilisateur", {})
+        
+        for utilisateur, count in envois_par_utilisateur.items():
+            erreurs = erreurs_par_utilisateur.get(utilisateur, 0)
+            pages = pages_par_utilisateur.get(utilisateur, 0)
+            success_rate = (100 * (count - erreurs) / count) if count > 0 else 0
+            
+            cursor.execute("""
+                INSERT INTO user_stats (
+                    report_id, utilisateur, total_envois, erreurs, pages, taux_reussite
+                ) VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                report_id,
+                utilisateur,
+                count,
+                erreurs,
+                pages,
+                success_rate
+            ))
+        
+        logger.info(f"✓ {len(envois_par_utilisateur)} utilisateurs enregistrés")
+        
+        # Insérer les statistiques d'erreurs
+        erreurs_par_type = stats.get("erreurs_par_type", {})
+        for type_erreur, count in erreurs_par_type.items():
+            cursor.execute("""
+                INSERT INTO error_stats (
+                    report_id, type_erreur, count
+                ) VALUES (%s, %s, %s)
+            """, (
+                report_id,
+                type_erreur,
+                count
+            ))
+        
+        logger.info(f"✓ {len(erreurs_par_type)} types d'erreurs enregistrés")
+        
         conn.commit()
-        logger.info(f"✓ Rapport inséré en base: {report_id}")
+        cursor.close()
+        conn.close()
+        
+        logger.info("✅ Rapport complètement inséré")
         return True
-        
+    
     except Exception as e:
-        logger.error(f"✗ Erreur insertion rapport: {e}")
-        conn.rollback()
+        logger.warning(f"⚠️  Erreur insertion base de données: {e}")
         return False
-    finally:
-        cursor.close()
-        conn.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CONSULTATION
+# REQUÊTES
 # ═══════════════════════════════════════════════════════════════════════════
 
-def get_all_reports(db_path: Path = None) -> List[Dict]:
+def get_report_by_id(report_id: str) -> Optional[Dict]:
     """
-    Récupère tous les rapports
+    Récupère un rapport complet par son ID
+    
+    Args:
+        report_id: UUID du rapport
+    
+    Returns:
+        Dictionnaire du rapport ou None
     """
-    if db_path is None:
-        db_path = config.DATABASE_PATH
+    if not MYSQL_AVAILABLE:
+        return None
     
     try:
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM reports 
-            ORDER BY created_at DESC
-        """)
-        
-        reports = [dict(row) for row in cursor.fetchall()]
-        
-        cursor.close()
-        conn.close()
-        
-        return reports
-        
-    except Exception as e:
-        logger.error(f"✗ Erreur lecture rapports: {e}")
-        return []
-
-
-def get_report_by_id(report_id: str, db_path: Path = None) -> Optional[Dict]:
-    """
-    Récupère un rapport complet avec ses entrées
-    """
-    if db_path is None:
-        db_path = config.DATABASE_PATH
-    
-    try:
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        # Récupérer le rapport principal
-        cursor.execute("""
-            SELECT * FROM reports WHERE id = ?
-        """, (report_id,))
-        report_row = cursor.fetchone()
-        
-        if not report_row:
-            logger.warning(f"Rapport non trouvé: {report_id}")
+        conn = get_connection()
+        if not conn:
             return None
         
-        report = dict(report_row)
+        cursor = conn.cursor(dictionary=True)
         
-        # Récupérer les entrées associées
-        cursor.execute("""
-            SELECT * FROM fax_entries WHERE report_id = ?
-        """, (report_id,))
-        
-        entries = []
-        for row in cursor.fetchall():
-            entry = dict(row)
-            # Parser les erreurs depuis JSON
-            if entry.get('erreurs'):
-                try:
-                    entry['erreurs'] = json.loads(entry['erreurs'])
-                except:
-                    entry['erreurs'] = []
-            entries.append(entry)
-        
-        report['entries'] = entries
+        cursor.execute("SELECT * FROM reports WHERE id = %s", (report_id,))
+        report = cursor.fetchone()
         
         cursor.close()
         conn.close()
         
         return report
-        
+    
     except Exception as e:
-        logger.error(f"✗ Erreur lecture rapport {report_id}: {e}")
+        logger.warning(f"⚠️  Erreur requête: {e}")
         return None
 
 
-def get_reports_by_contract(contract_id: str, db_path: Path = None) -> List[Dict]:
+def get_reports_by_contract(contract_id: str) -> List[Dict]:
     """
     Récupère tous les rapports d'un contrat
+    
+    Args:
+        contract_id: ID du contrat
+    
+    Returns:
+        Liste des rapports
     """
-    if db_path is None:
-        db_path = config.DATABASE_PATH
+    if not MYSQL_AVAILABLE:
+        return []
     
     try:
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        conn = get_connection()
+        if not conn:
+            return []
         
-        cursor.execute("""
-            SELECT * FROM reports 
-            WHERE contract_id = ?
-            ORDER BY created_at DESC
-        """, (contract_id,))
+        cursor = conn.cursor(dictionary=True)
         
-        reports = [dict(row) for row in cursor.fetchall()]
+        cursor.execute(
+            """SELECT * FROM reports 
+               WHERE contract_id = %s 
+               ORDER BY timestamp DESC""",
+            (contract_id,)
+        )
+        reports = cursor.fetchall()
         
         cursor.close()
         conn.close()
         
         return reports
-        
+    
     except Exception as e:
-        logger.error(f"✗ Erreur lecture rapports du contrat: {e}")
+        logger.warning(f"⚠️  Erreur requête: {e}")
         return []
 
 
-def get_statistics(db_path: Path = None) -> Dict:
+def get_user_stats(report_id: str) -> List[Dict]:
     """
-    Retourne les statistiques globales
+    Récupère les statistiques par utilisateur pour un rapport
+    
+    Args:
+        report_id: UUID du rapport
+    
+    Returns:
+        Liste des statistiques par utilisateur
     """
-    if db_path is None:
-        db_path = config.DATABASE_PATH
+    if not MYSQL_AVAILABLE:
+        return []
     
     try:
-        conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
+        conn = get_connection()
+        if not conn:
+            return []
         
-        # Nombre de rapports
-        cursor.execute("SELECT COUNT(*) FROM reports")
-        total_reports = cursor.fetchone()[0]
+        cursor = conn.cursor(dictionary=True)
         
-        # Total FAX
-        cursor.execute("SELECT SUM(total_fax) FROM reports")
-        total_fax = cursor.fetchone()[0] or 0
-        
-        # Total erreurs
-        cursor.execute("SELECT SUM(erreurs_totales) FROM reports")
-        total_errors = cursor.fetchone()[0] or 0
-        
-        # Taux moyen
-        cursor.execute("SELECT AVG(taux_reussite) FROM reports")
-        avg_success = cursor.fetchone()[0] or 0.0
-        
-        # Nombre d'utilisateurs uniques
-        cursor.execute("SELECT COUNT(DISTINCT utilisateur) FROM fax_entries")
-        users_count = cursor.fetchone()[0]
+        cursor.execute(
+            "SELECT * FROM user_stats WHERE report_id = %s",
+            (report_id,)
+        )
+        stats = cursor.fetchall()
         
         cursor.close()
         conn.close()
         
-        return {
-            'total_reports': total_reports,
-            'total_fax': total_fax,
-            'total_errors': total_errors,
-            'avg_success_rate': round(avg_success, 2),
-            'users_count': users_count
-        }
-        
+        return stats
+    
     except Exception as e:
-        logger.error(f"✗ Erreur calcul statistiques: {e}")
-        return {
-            'total_reports': 0,
-            'total_fax': 0,
-            'total_errors': 0,
-            'avg_success_rate': 0.0,
-            'users_count': 0
-        }
+        logger.warning(f"⚠️  Erreur requête: {e}")
+        return []
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# UTILITAIRES
-# ═══════════════════════════════════════════════════════════════════════════
-
-def delete_report(report_id: str, db_path: Path = None) -> bool:
+def get_error_stats(report_id: str) -> List[Dict]:
     """
-    Supprime un rapport et ses entrées
+    Récupère les statistiques d'erreurs pour un rapport
+    
+    Args:
+        report_id: UUID du rapport
+    
+    Returns:
+        Liste des statistiques d'erreurs
     """
-    if db_path is None:
-        db_path = config.DATABASE_PATH
+    if not MYSQL_AVAILABLE:
+        return []
     
     try:
-        conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
+        conn = get_connection()
+        if not conn:
+            return []
         
-        # Supprimer les entrées d'abord
-        cursor.execute("DELETE FROM fax_entries WHERE report_id = ?", (report_id,))
+        cursor = conn.cursor(dictionary=True)
         
-        # Supprimer le rapport
-        cursor.execute("DELETE FROM reports WHERE id = ?", (report_id,))
-        
-        conn.commit()
-        logger.info(f"✓ Rapport supprimé: {report_id}")
+        cursor.execute(
+            "SELECT * FROM error_stats WHERE report_id = %s",
+            (report_id,)
+        )
+        stats = cursor.fetchall()
         
         cursor.close()
         conn.close()
-        return True
         
+        return stats
+    
     except Exception as e:
-        logger.error(f"✗ Erreur suppression rapport: {e}")
-        return False
+        logger.warning(f"⚠️  Erreur requête: {e}")
+        return []
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST
 # ═══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
+    import sys
+    
     logging.basicConfig(level=logging.INFO)
-    print("Initialisation de la base de données...")
-    init_database()
-    print("✅ Base de données prête!")
+    config.ensure_directories()
+    
+    print("🗄️  Module base de données prêt")
+    print(f"MySQL disponible: {MYSQL_AVAILABLE}")
+    
+    if MYSQL_AVAILABLE:
+        print("\nInitialisation base de données...")
+        init_database()
