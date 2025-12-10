@@ -1,76 +1,104 @@
 """
-Module d'analyse des données FaxCloud
+Module d'analyse - Traitement complet des données FaxCloud
 Responsabilités:
-- Normalisation des numéros de téléphone (via validation_rules)
-- Validation des numéros (via validation_rules)
-- Analyse complète des données
-- Génération des statistiques
+- Analyser chaque ligne (numéros, pages, type FAX)
+- Valider contre les règles
+- Calculer les statistiques
+- Générer un rapport d'analyse
 """
 
-import re
 import logging
-import uuid
-from typing import Dict, List, Tuple
-from datetime import datetime
+from typing import Dict, List, Optional
+from collections import defaultdict
+
 import validation_rules
 
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# NORMALISATION DES NUMÉROS (déléguée à validation_rules)
+# ANALYSE DE LIGNES
 # ═══════════════════════════════════════════════════════════════════════════
 
-def normalize_number(raw_number: str) -> str:
+def analyze_entry(row: Dict) -> Dict:
     """
-    Normalise un numéro de téléphone
+    Analyse une ligne complète d'export FaxCloud
     
-    Utilise la logique officielle de validation_rules.py
-    
-    Exemples:
-        "0622334455" → "33622334455"
-        "+33622334455" → "33622334455"
-        "33 6 22 33 44 55" → "33622334455"
-        "0033622334455" → "33622334455"
-        "INVALID" → ""
-        "" → ""
+    Vérifie:
+    1. Colonne H (Numéro appelé): valide
+    2. Colonne K (Nombre de pages): valide
+    3. Colonne D (Mode): SF ou RF
     
     Args:
-        raw_number: Numéro brut
+        row: Dictionnaire avec indices 0-13
+             0=FaxID, 1=User, 2=Reseller, 3=Mode, 4=Email,
+             5=DateTime, 6=NumEnvoi, 7=NumAppele, 8=IntlCall,
+             9=InternalCall, 10=Pages, 11=Duration, 12=BilledPages, 13=BillingType
     
     Returns:
-        Numéro normalisé (11 chiffres commençant par 33)
+        Dict avec résultat complet de l'analyse
     """
-    return validation_rules.normalize_number(raw_number)
+    erreurs = []
+    
+    # Colonne A: Fax ID (0)
+    fax_id = row.get(0, "")
+    
+    # Colonne B: Utilisateur (1)
+    utilisateur = row.get(1, "INCONNU")
+    if not utilisateur or utilisateur.strip() == "":
+        utilisateur = "INCONNU"
+    else:
+        utilisateur = utilisateur.strip()
+    
+    # Colonne D: Mode (3)
+    mode_brut = row.get(3, "")
+    mode_valid, mode_error = validation_rules.validate_fax_type(mode_brut)
+    if not mode_valid:
+        erreurs.append(mode_error)
+        mode = None
+    else:
+        mode = mode_brut.strip().upper()
+    
+    # Colonne F: Date/Heure (5)
+    datetime_str = row.get(5, "")
+    
+    # Colonne H: Numéro appelé (7)
+    numero_brut = row.get(7, "")
+    numero_normalise, numero_error = validation_rules.analyze_number(numero_brut)[:2]
+    est_numero_valide = validation_rules.analyze_number(numero_brut)[0]
+    if not est_numero_valide:
+        erreur_numero = validation_rules.analyze_number(numero_brut)[2]
+        erreurs.append(erreur_numero)
+    
+    # Colonne K: Nombre de pages (10)
+    pages_brut = row.get(10, "")
+    pages_valid, pages_error = validation_rules.validate_pages(pages_brut)
+    try:
+        nb_pages = int(str(pages_brut).strip()) if pages_valid else 0
+    except ValueError:
+        nb_pages = 0
+    
+    if not pages_valid:
+        erreurs.append(pages_error)
+    
+    # Déterminer si la ligne est valide globalement
+    est_valide = len(erreurs) == 0 and est_numero_valide and mode_valid and pages_valid
+    
+    return {
+        "fax_id": fax_id,
+        "utilisateur": utilisateur,
+        "mode": mode,
+        "datetime": datetime_str,
+        "numero_original": numero_brut,
+        "numero_normalise": numero_normalise,
+        "pages": nb_pages,
+        "valide": est_valide,
+        "erreurs": erreurs,
+        "erreur_msg": "; ".join(erreurs) if erreurs else ""
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VALIDATION DES NUMÉROS (déléguée à validation_rules)
-# ═══════════════════════════════════════════════════════════════════════════
-
-def validate_number(numero_brut: str) -> Tuple[bool, str]:
-    """
-    Valide un numéro (brut)
-    
-    Utilise la logique officielle de validation_rules.py
-    
-    Règles:
-        - Normalisation: supprime caractères non-numériques
-        - Conversion: 0X → 33X, 0033X → 33X
-        - Longueur exacte: 11 chiffres
-        - Commence par: 33
-    
-    Args:
-        numero_brut: Numéro brut avec caractères spéciaux
-    
-    Returns:
-        Tuple[bool, str]: (est_valide, message_erreur)
-    """
-    est_valide, numero_norm, erreur = validation_rules.analyze_number(numero_brut)
-    return est_valide, erreur
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# ANALYSE COMPLÈTE
+# ANALYSE GLOBALE
 # ═══════════════════════════════════════════════════════════════════════════
 
 def analyze_data(
@@ -80,229 +108,196 @@ def analyze_data(
     date_fin: str
 ) -> Dict:
     """
-    Analyse l'intégralité des données importées
-    Génère les statistiques et valide chaque entrée
+    Analyse complète de toutes les lignes
+    Génère les statistiques globales et par utilisateur
     
     Args:
-        rows: Liste des lignes importées
+        rows: Liste des lignes normalisées
         contract_id: ID du contrat
         date_debut: Date de début (YYYY-MM-DD)
         date_fin: Date de fin (YYYY-MM-DD)
     
     Returns:
-        {
-            "entries": List[Dict],  # Entrées analysées
-            "statistics": Dict,     # Statistiques
-            "contract_id": str,
-            "date_debut": str,
-            "date_fin": str
-        }
+        Dict avec structure complète d'analyse
     """
-    logger.info(f"Début analyse: {len(rows)} lignes")
+    logger.info("=" * 70)
+    logger.info("📊 ANALYSE DES DONNÉES")
+    logger.info("=" * 70)
     
-    # Initialiser les structures
+    # Analyseurs
     entries = []
-    statistics = {
-        "total_fax": 0,
-        "fax_envoyes": 0,
-        "fax_recus": 0,
-        "pages_totales": 0,
-        "erreurs_totales": 0,
-        "taux_reussite": 0.0,
-        "erreurs_par_type": {
-            "numero_vide": 0,
-            "longueur_incorrecte": 0,
-            "ne_commence_pas_33": 0,
-            "caracteres_invalides": 0
-        },
-        "envois_par_utilisateur": {},
-        "erreurs_par_utilisateur": {}
-    }
     
-    # Parcourir chaque ligne
-    for row in rows:
-        try:
-            # Extraire les données (colonnes par index)
-            fax_id = row.get('A', '')
-            utilisateur = row.get('B', '')
-            mode = row.get('D', '').upper()
-            datetime_str = row.get('F', '')
-            numero_appele = row.get('H', '')
-            pages = row.get('K', 0)
-            
-            # Normaliser le numéro appelé
-            numero_normalise = normalize_number(numero_appele)
-            validation = validate_number(numero_normalise)
-            
-            # Déterminer le type
-            if mode == "SF":
-                type_fax = "send"
-            elif mode == "RF":
-                type_fax = "receive"
-            else:
-                type_fax = "unknown"
-            
-            # Créer l'entrée
-            entry = {
-                "id": str(uuid.uuid4()),
-                "fax_id": fax_id,
-                "utilisateur": utilisateur,
-                "type": type_fax,
-                "numero_original": numero_appele,
-                "numero_normalise": numero_normalise,
-                "valide": validation["is_valid"],
-                "pages": int(pages),
-                "datetime": datetime_str,
-                "erreurs": validation["errors"]
-            }
-            entries.append(entry)
-            
-            # Mettre à jour les statistiques globales
-            statistics["total_fax"] += 1
-            
-            if type_fax == "send":
-                statistics["fax_envoyes"] += 1
-            elif type_fax == "receive":
-                statistics["fax_recus"] += 1
-            
-            statistics["pages_totales"] += int(pages)
-            
-            # Gérer les erreurs
-            if not validation["is_valid"]:
-                statistics["erreurs_totales"] += 1
-                
-                # Compter par type d'erreur
-                for error_msg in validation["errors"]:
-                    if "vide" in error_msg.lower():
-                        statistics["erreurs_par_type"]["numero_vide"] += 1
-                    elif "longueur" in error_msg.lower():
-                        statistics["erreurs_par_type"]["longueur_incorrecte"] += 1
-                    elif "33" in error_msg:
-                        statistics["erreurs_par_type"]["ne_commence_pas_33"] += 1
-                    elif "invalides" in error_msg.lower():
-                        statistics["erreurs_par_type"]["caracteres_invalides"] += 1
-            
-            # Compter par utilisateur
-            if utilisateur not in statistics["envois_par_utilisateur"]:
-                statistics["envois_par_utilisateur"][utilisateur] = 0
-            statistics["envois_par_utilisateur"][utilisateur] += 1
-            
-            if not validation["is_valid"]:
-                if utilisateur not in statistics["erreurs_par_utilisateur"]:
-                    statistics["erreurs_par_utilisateur"][utilisateur] = 0
-                statistics["erreurs_par_utilisateur"][utilisateur] += 1
+    # Statistiques
+    total_fax = 0
+    fax_envoyes = 0
+    fax_recus = 0
+    pages_envoyees = 0
+    pages_recues = 0
+    pages_totales = 0
+    erreurs_totales = 0
+    
+    # Dictionnaires pour statistiques détaillées
+    envois_par_utilisateur = defaultdict(int)
+    erreurs_par_utilisateur = defaultdict(int)
+    erreurs_par_type = defaultdict(int)
+    pages_par_utilisateur = defaultdict(int)
+    
+    # Analyser chaque ligne
+    logger.info(f"\nTraitement de {len(rows)} lignes...")
+    
+    for idx, row in enumerate(rows, 1):
+        if idx % 50 == 0:
+            logger.info(f"  Traitement ligne {idx}/{len(rows)}...")
         
-        except Exception as e:
-            logger.warning(f"Erreur analyse ligne: {str(e)}")
-            continue
-    
-    # Calculer le taux de réussite
-    if statistics["total_fax"] > 0:
-        reussis = statistics["total_fax"] - statistics["erreurs_totales"]
-        statistics["taux_reussite"] = (reussis / statistics["total_fax"]) * 100
-    else:
-        statistics["taux_reussite"] = 0.0
-    
-    logger.info(f"✓ Analyse complète: {statistics['total_fax']} FAX, "
-                f"{statistics['erreurs_totales']} erreurs, "
-                f"{statistics['taux_reussite']:.2f}% réussite")
-    
-    return {
-        "entries": entries,
-        "statistics": statistics,
-        "contract_id": contract_id,
-        "date_debut": date_debut,
-        "date_fin": date_fin
-    }
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# STATISTIQUES PAR UTILISATEUR
-# ═══════════════════════════════════════════════════════════════════════════
-
-def get_user_stats(analysis: Dict) -> Dict:
-    """
-    Génère des statistiques détaillées par utilisateur
-    """
-    user_stats = {}
-    
-    for entry in analysis["entries"]:
+        # Analyser la ligne
+        entry = analyze_entry(row)
+        entries.append(entry)
+        
         utilisateur = entry["utilisateur"]
         
-        if utilisateur not in user_stats:
-            user_stats[utilisateur] = {
-                "total": 0,
-                "envoyes": 0,
-                "recus": 0,
-                "pages": 0,
-                "erreurs": 0,
-                "valides": 0,
-                "taux_reussite": 0.0
-            }
+        # Compter les FAX
+        total_fax += 1
         
-        user_stats[utilisateur]["total"] += 1
+        # Compter par utilisateur
+        envois_par_utilisateur[utilisateur] += 1
         
-        if entry["type"] == "send":
-            user_stats[utilisateur]["envoyes"] += 1
-        elif entry["type"] == "receive":
-            user_stats[utilisateur]["recus"] += 1
-        
-        user_stats[utilisateur]["pages"] += entry["pages"]
-        
+        # Compter par mode
         if entry["valide"]:
-            user_stats[utilisateur]["valides"] += 1
-        else:
-            user_stats[utilisateur]["erreurs"] += 1
+            if entry["mode"] == "SF":
+                fax_envoyes += 1
+                pages_envoyees += entry["pages"]
+            elif entry["mode"] == "RF":
+                fax_recus += 1
+                pages_recues += entry["pages"]
+            
+            pages_totales += entry["pages"]
+            pages_par_utilisateur[utilisateur] += entry["pages"]
         
-        # Calculer le taux
-        if user_stats[utilisateur]["total"] > 0:
-            user_stats[utilisateur]["taux_reussite"] = (
-                user_stats[utilisateur]["valides"] / 
-                user_stats[utilisateur]["total"] * 100
-            )
+        # Compter les erreurs
+        if not entry["valide"]:
+            erreurs_totales += 1
+            erreurs_par_utilisateur[utilisateur] += 1
+            
+            # Compter les erreurs par type
+            for erreur in entry["erreurs"]:
+                # Normaliser les types d'erreurs
+                if "vide" in erreur.lower():
+                    erreurs_par_type["Numéro vide"] += 1
+                elif "longueur" in erreur.lower():
+                    erreurs_par_type["Longueur incorrecte"] += 1
+                elif "indicatif" in erreur.lower() or "commence" in erreur.lower():
+                    erreurs_par_type["Indicatif invalide"] += 1
+                elif "type de fax" in erreur.lower():
+                    erreurs_par_type["Type de FAX invalide"] += 1
+                elif "pages" in erreur.lower():
+                    erreurs_par_type["Pages invalides"] += 1
+                else:
+                    erreurs_par_type["Autre erreur"] += 1
     
-    return user_stats
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# DÉTAILS DES ERREURS
-# ═══════════════════════════════════════════════════════════════════════════
-
-def get_error_details(analysis: Dict) -> Dict:
-    """
-    Retourne les détails des erreurs
-    """
-    errors = {
-        "total": analysis["statistics"]["erreurs_totales"],
-        "par_type": analysis["statistics"]["erreurs_par_type"],
-        "entrees_invalides": [
-            entry for entry in analysis["entries"]
-            if not entry["valide"]
-        ]
+    # Calculer le taux de réussite
+    taux_reussite = (100 * (total_fax - erreurs_totales) / total_fax) if total_fax > 0 else 0
+    
+    # Construire le dictionnaire de statistiques
+    statistics = {
+        "total_fax": total_fax,
+        "fax_envoyes": fax_envoyes,
+        "fax_recus": fax_recus,
+        "pages_envoyees": pages_envoyees,
+        "pages_recues": pages_recues,
+        "pages_totales": pages_totales,
+        "erreurs_totales": erreurs_totales,
+        "taux_reussite": taux_reussite,
+        "erreurs_par_type": dict(erreurs_par_type),
+        "envois_par_utilisateur": dict(envois_par_utilisateur),
+        "erreurs_par_utilisateur": dict(erreurs_par_utilisateur),
+        "pages_par_utilisateur": dict(pages_par_utilisateur),
     }
     
-    return errors
+    # Log des résultats
+    logger.info(f"\n✓ Analyse terminée")
+    logger.info(f"  • Total FAX: {total_fax}")
+    logger.info(f"  • Valides: {total_fax - erreurs_totales}")
+    logger.info(f"  • Erreurs: {erreurs_totales}")
+    logger.info(f"  • Taux réussite: {taux_reussite:.2f}%")
+    logger.info(f"  • Pages totales: {pages_totales}")
+    logger.info(f"    - Envoyées: {pages_envoyees}")
+    logger.info(f"    - Reçues: {pages_recues}")
+    logger.info(f"  • Utilisateurs: {len(envois_par_utilisateur)}")
+    
+    logger.info("=" * 70)
+    
+    return {
+        "contract_id": contract_id,
+        "date_debut": date_debut,
+        "date_fin": date_fin,
+        "statistics": statistics,
+        "entries": entries
+    }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST
 # ═══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+    
     logging.basicConfig(level=logging.INFO)
     
-    # Exemples de test
-    print("=== Tests de normalisation ===")
-    tests = [
-        "0622334455",
-        "+33622334455",
-        "33 6 22 33 44 55",
-        "INVALID",
-        "",
-        "0133445566"
+    # Test avec des données simulées
+    print("📊 Module d'analyse prêt")
+    
+    test_rows = [
+        {
+            0: "FAX001",
+            1: "Jean Dupont",
+            2: "Revendeur A",
+            3: "SF",
+            4: "jean@example.com",
+            5: "2024-12-01 10:00",
+            6: "0123456789",
+            7: "+33 1 45 22 11 34",
+            8: "",
+            9: "",
+            10: "5",
+            11: "120",
+            12: "5",
+            13: "Standard"
+        },
+        {
+            0: "FAX002",
+            1: "Marie Martin",
+            2: "Revendeur B",
+            3: "RF",
+            4: "marie@example.com",
+            5: "2024-12-01 11:00",
+            6: "0123456789",
+            7: "01 45 22 11 34",
+            8: "",
+            9: "",
+            10: "3",
+            11: "90",
+            12: "3",
+            13: "Standard"
+        },
+        {
+            0: "FAX003",
+            1: "Pierre Leblanc",
+            2: "Revendeur A",
+            3: "SF",
+            4: "pierre@example.com",
+            5: "2024-12-01 12:00",
+            6: "0123456789",
+            7: "",  # Numéro vide
+            8: "",
+            9: "",
+            10: "2",
+            11: "60",
+            12: "2",
+            13: "Standard"
+        },
     ]
     
-    for test in tests:
-        normalized = normalize_number(test)
-        validation = validate_number(normalized)
-        print(f"'{test}' → '{normalized}' → Valide: {validation['is_valid']}")
-        if validation['errors']:
-            print(f"  Erreurs: {validation['errors']}")
+    result = analyze_data(test_rows, "CONTRACT_TEST", "2024-12-01", "2024-12-31")
+    print(f"\nRésultat:\n{result}")
