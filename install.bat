@@ -1,113 +1,155 @@
 @echo off
-REM ═══════════════════════════════════════════════════════════════════════
-REM FaxCloud Analyzer - Installation des dépendances (Windows)
-REM ═══════════════════════════════════════════════════════════════════════
+REM ═══════════════════════════════════════════════════════════════════════════
+REM FaxCloud Analyzer - Installation complète
+REM ═══════════════════════════════════════════════════════════════════════════
+REM Ce script installe Python, crée l'environnement virtuel et installe les dépendances
 
 setlocal enabledelayedexpansion
 
+REM Couleurs et styles
+cls
 echo.
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  FaxCloud Analyzer - Installation
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo ╔═══════════════════════════════════════════════════════════════════════════╗
+echo ║                 FaxCloud Analyzer - Installation                          ║
+echo ║                        Version 1.0.0                                      ║
+echo ╚═══════════════════════════════════════════════════════════════════════════╝
 echo.
 
-REM Vérifier si Python est installé
+REM ═══════════════════════════════════════════════════════════════════════════
+REM ÉTAPE 1: Vérifier Python
+REM ═══════════════════════════════════════════════════════════════════════════
+
+echo [ÉTAPE 1] Vérification de Python...
+echo ──────────────────────────────────────────────────────────────────────────
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [ERREUR] Python n'est pas installé ou n'est pas dans le PATH
     echo.
-    echo Téléchargez Python 3.8+ depuis https://www.python.org/downloads/
-    echo N'oubliez pas de cocher "Add Python to PATH" lors de l'installation
+    echo ❌ ERREUR: Python n'est pas installé ou n'est pas dans le PATH
+    echo.
+    echo Solution:
+    echo   1. Téléchargez Python 3.8+ depuis https://www.python.org/downloads/
+    echo   2. Lors de l'installation, cochez "Add Python to PATH"
+    echo   3. Relancez ce script
     echo.
     pause
     exit /b 1
 )
 
-echo [✓] Python détecté
-python --version
+REM Afficher la version
+for /f "tokens=*" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
+echo ✓ Python détecté: %PYTHON_VERSION%
 echo.
 
-REM Créer ou utiliser l'environnement virtuel
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Étape 1: Configuration de l'environnement virtuel
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo.
+REM ═══════════════════════════════════════════════════════════════════════════
+REM ÉTAPE 2: Créer l'environnement virtuel
+REM ═══════════════════════════════════════════════════════════════════════════
+
+echo [ÉTAPE 2] Configuration de l'environnement virtuel...
+echo ──────────────────────────────────────────────────────────────────────────
 
 if exist venv (
-    echo [INFO] Environnement virtuel existe déjà
+    echo ✓ Environnement virtuel (venv) existe déjà
 ) else (
-    echo [*] Création de l'environnement virtuel...
+    echo • Création de l'environnement virtuel...
     python -m venv venv
     if errorlevel 1 (
-        echo [ERREUR] Impossible de créer le venv
+        echo.
+        echo ❌ ERREUR: Impossible de créer le venv
         pause
         exit /b 1
     )
-    echo [✓] Environnement virtuel créé
+    echo ✓ Environnement virtuel créé
 )
 echo.
 
-REM Activer l'environnement virtuel
+REM ═══════════════════════════════════════════════════════════════════════════
+REM ÉTAPE 3: Activer l'environnement virtuel
+REM ═══════════════════════════════════════════════════════════════════════════
+
+echo [ÉTAPE 3] Activation de l'environnement virtuel...
+echo ──────────────────────────────────────────────────────────────────────────
+
 call venv\Scripts\activate.bat
 if errorlevel 1 (
-    echo [ERREUR] Impossible d'activer l'environnement virtuel
+    echo.
+    echo ❌ ERREUR: Impossible d'activer le venv
     pause
     exit /b 1
 )
 
-echo.
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Étape 2: Mise à jour de pip et installation des dépendances
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo ✓ Environnement virtuel activé
 echo.
 
-echo [*] Mise à jour de pip...
+REM ═══════════════════════════════════════════════════════════════════════════
+REM ÉTAPE 4: Mettre à jour pip
+REM ═══════════════════════════════════════════════════════════════════════════
+
+echo [ÉTAPE 4] Mise à jour de pip...
+echo ──────────────────────────────────────────────────────────────────────────
+
 python -m pip install --upgrade pip --quiet
-
-echo [*] Installation des packages...
-pip install -r requirements.txt --quiet
 if errorlevel 1 (
-    echo [ERREUR] Impossible d'installer les packages
-    echo.
-    echo Essayez manuellement:
-    echo   1. venv\Scripts\activate
-    echo   2. pip install -r requirements.txt
-    echo.
+    echo ❌ ERREUR: Impossible de mettre à jour pip
     pause
     exit /b 1
 )
 
-echo [✓] Tous les packages installés
+for /f "tokens=*" %%i in ('pip --version') do set PIP_VERSION=%%i
+echo ✓ pip mis à jour: %PIP_VERSION%
 echo.
 
-REM Vérification rapide
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Étape 3: Vérification des dépendances
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REM ═══════════════════════════════════════════════════════════════════════════
+REM ÉTAPE 5: Installer les dépendances
+REM ═══════════════════════════════════════════════════════════════════════════
+
+echo [ÉTAPE 5] Installation des dépendances de requirements.txt...
+echo ──────────────────────────────────────────────────────────────────────────
+
+pip install -r requirements.txt
+if errorlevel 1 (
+    echo.
+    echo ❌ ERREUR: L'installation des dépendances a échoué
+    pause
+    exit /b 1
+)
+
+echo.
+echo ✓ Toutes les dépendances installées avec succès
 echo.
 
-python -c "import pandas; import openpyxl; import qrcode; import flask; print('  ✓ Tous les packages vérifié')" 2>nul
+REM ═══════════════════════════════════════════════════════════════════════════
+REM ÉTAPE 6: Vérification finale
+REM ═══════════════════════════════════════════════════════════════════════════
+
+echo [ÉTAPE 6] Vérification de l'installation...
+echo ──────────────────────────────────────────────────────────────────────────
+
+echo • Packages installés:
+pip list
 
 echo.
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  ✅ Installation terminée avec succès !
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo.
 
+REM ═══════════════════════════════════════════════════════════════════════════
+REM SUCCÈS
+REM ═══════════════════════════════════════════════════════════════════════════
+
+echo ╔═══════════════════════════════════════════════════════════════════════════╗
+echo ║                  ✓ INSTALLATION RÉUSSIE                                   ║
+echo ╚═══════════════════════════════════════════════════════════════════════════╝
+echo.
 echo Prochaines étapes:
 echo.
 echo 1. Initialiser le projet:
 echo    python main.py init
 echo.
-echo 2. Lancer l'interface web (Windows):
-echo    cd web
-echo    launch-web.bat
+echo 2. Importer un fichier:
+echo    python main.py import --file exports/data.csv
 echo.
-echo 3. Ou importer un fichier (CLI):
-echo    python main.py import --file data.csv --contract "CLIENT_001"
+echo 3. Lancer le serveur web:
+echo    python web/app.py
+echo    Puis accédez à: http://localhost:5000
 echo.
-echo 4. Consulter l'aide:
-echo    python main.py --help
+echo Pour plus d'informations, consultez: README.md
 echo.
 
 pause
