@@ -1,151 +1,233 @@
 """
-Rapports - Generation rapports JSON et QR codes
+Module de génération des rapports et codes QR
+Crée les rapports JSON et génère les QR codes pour accès mobile
 """
+
 import logging
 import json
-import uuid
+import qrcode
+from uuid import uuid4
 from pathlib import Path
-from typing import Dict
 from datetime import datetime
+from typing import Dict, Any, Optional, List
 
-import config
+from .config import Config
 
 logger = logging.getLogger(__name__)
 
-try:
-    import qrcode
-    QRCODE_OK = True
-except ImportError:
-    QRCODE_OK = False
-    logger.warning("qrcode non disponible - QR codes desactives")
+# ═══════════════════════════════════════════════════════════════════════════
+# CLASSE REPORT GENERATOR
+# ═══════════════════════════════════════════════════════════════════════════
 
-
-def generate_report(analysis: Dict) -> Dict:
-    """Genere rapport JSON et QR code"""
-    try:
-        report_id = str(uuid.uuid4())
-        logger.info("=" * 70)
-        logger.info("RAPPORT")
-        logger.info("=" * 70)
-        logger.info(f"ID: {report_id}")
-        
-        # Creer dossiers
-        reports_dir = config.DIRS['reports_json']
-        reports_dir.mkdir(parents=True, exist_ok=True)
-        
-        qr_dir = config.DIRS['reports_qr']
-        qr_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Generer QR code
-        qr_path = ""
-        if QRCODE_OK:
-            try:
-                qr_url = f"http://localhost:8000/reports/{report_id}"
-                qr = qrcode.QRCode(version=1, box_size=10, border=4)
-                qr.add_data(qr_url)
-                qr.make(fit=True)
-                
-                img = qr.make_image(fill_color="black", back_color="white")
-                qr_file = qr_dir / f"{report_id}.png"
-                img.save(str(qr_file))
-                qr_path = str(qr_file).replace("\\", "/")
-                logger.info(f"QR code: {qr_file.name}")
-            except Exception as e:
-                logger.warning(f"Erreur QR: {e}")
-        
-        # Creer rapport JSON
-        report_json = {
-            "report_id": report_id,
-            "timestamp": datetime.now().isoformat(),
-            "contract_id": analysis.get("contract_id", ""),
-            "date_debut": analysis.get("date_debut", ""),
-            "date_fin": analysis.get("date_fin", ""),
-            "statistics": analysis.get("statistics", {}),
-            "entries": analysis.get("entries", []),
-            "qr_code_path": qr_path,
-            "report_url": f"/reports/{report_id}"
-        }
-        
-        # Sauvegarder JSON
-        report_file = reports_dir / f"{report_id}.json"
-        with open(report_file, 'w', encoding='utf-8') as f:
-            json.dump(report_json, f, indent=2, ensure_ascii=False)
-        
-        logger.info(f"JSON: {report_file.name}")
-        logger.info("=" * 70)
-        
-        return {
-            "success": True,
-            "report_id": report_id,
-            "report_url": f"/reports/{report_id}",
-            "qr_path": qr_path,
-            "message": "Rapport OK"
-        }
+class ReportGenerator:
+    """Généré les rapports et codes QR"""
     
-    except Exception as e:
-        logger.error(f"Erreur rapport: {e}")
-        return {
-            "success": False,
-            "report_id": "",
-            "report_url": "",
-            "qr_path": "",
-            "message": str(e)
-        }
-
-
-def load_report_json(report_id: str) -> Dict:
-    """Charge un rapport JSON"""
-    try:
-        report_file = config.DIRS['reports_json'] / f"{report_id}.json"
-        with open(report_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except:
-        return None
-
-
-def generate_summary(report_json: Dict) -> str:
-    """Genere un resume texte du rapport"""
-    if not report_json:
-        return "Rapport non trouve"
+    def __init__(self, db=None):
+        """Initialise le générateur de rapports"""
+        self.db = db
+        Config.ensure_directories()
     
-    stats = report_json.get("statistics", {})
+    @staticmethod
+    def generate_report_id() -> str:
+        """Génère un UUID pour le rapport"""
+        return str(uuid4())
     
-    summary = f"""
-RAPPORT FAXCLOUD
-================
+    def generate_qr_code(self, report_id: str, report_url: str) -> Optional[str]:
+        """
+        Génère un code QR pour un rapport
+        Retourne le chemin du fichier PNG généré
+        """
+        try:
+            # Créer le QR code
+            qr = qrcode.QRCode(
+                version=Config.QR_CODE_CONFIG['version'],
+                error_correction=getattr(qrcode.constants, f"ERROR_CORRECT_{Config.QR_CODE_CONFIG['error_correction']}"),
+                box_size=Config.QR_CODE_CONFIG['box_size'],
+                border=Config.QR_CODE_CONFIG['border']
+            )
+            
+            qr.add_data(report_url)
+            qr.make(fit=True)
+            
+            # Créer l'image
+            img = qr.make_image(fill_color="black", back_color="white")
+            
+            # Sauvegarder
+            qr_path = Config.REPORTS_QR_DIR / f"{report_id}.png"
+            img.save(str(qr_path))
+            
+            logger.info(f"QR code généré: {qr_path}")
+            return str(qr_path)
+        
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération du QR code: {e}")
+            return None
+    
+    def save_report_json(self, report_data: Dict[str, Any]) -> str:
+        """Sauvegarde le rapport en JSON"""
+        try:
+            report_id = report_data['rapport_id']
+            json_path = Config.REPORTS_DIR / f"{report_id}.json"
+            
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)
+            
+            logger.info(f"Rapport JSON sauvegardé: {json_path}")
+            return str(json_path)
+        
+        except Exception as e:
+            logger.error(f"Erreur lors de la sauvegarde du rapport JSON: {e}")
+            raise
+    
+    def generate_report(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Génère un rapport complet (JSON + QR code)
+        Retourne les informations du rapport généré
+        """
+        try:
+            # Générer l'ID du rapport
+            report_id = self.generate_report_id()
+            
+            # Construire le rapport
+            report_data = {
+                'rapport_id': report_id,
+                'timestamp': datetime.now().isoformat(),
+                'contract_id': analysis_data['contract_id'],
+                'date_debut': analysis_data['date_debut'],
+                'date_fin': analysis_data['date_fin'],
+                'statistics': analysis_data['statistics'],
+                'entries': analysis_data['entries'],
+                'utilisateurs_stats': analysis_data.get('utilisateurs_stats', {}),
+                'qr_path': None,
+                'report_url': None
+            }
+            
+            # Sauvegarder le JSON
+            json_path = self.save_report_json(report_data)
+            
+            # Générer l'URL et le QR code
+            report_url = f"{Config.BASE_REPORT_URL}/{report_id}"
+            qr_path = self.generate_qr_code(report_id, report_url)
+            
+            # Mettre à jour le rapport
+            report_data['qr_path'] = qr_path
+            report_data['report_url'] = report_url
+            
+            # Sauvegarder dans la DB si disponible
+            if self.db:
+                self.db.save_report(report_data)
+            
+            logger.info(f"Rapport complet généré: {report_id}")
+            
+            return {
+                'success': True,
+                'rapport_id': report_id,
+                'report_url': report_url,
+                'qr_path': qr_path,
+                'json_path': json_path,
+                'message': f"Rapport {report_id} généré avec succès"
+            }
+        
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération du rapport: {e}")
+            return {
+                'success': False,
+                'message': str(e),
+                'error': str(e)
+            }
+    
+    @staticmethod
+    def load_report_json(report_id: str) -> Optional[Dict[str, Any]]:
+        """Charge un rapport JSON"""
+        try:
+            json_path = Config.REPORTS_DIR / f"{report_id}.json"
+            
+            if not json_path.exists():
+                logger.warning(f"Rapport non trouvé: {json_path}")
+                return None
+            
+            with open(json_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        
+        except Exception as e:
+            logger.error(f"Erreur lors de la lecture du rapport: {e}")
+            return None
+    
+    @staticmethod
+    def list_reports() -> List[Dict[str, Any]]:
+        """Liste tous les rapports disponibles"""
+        reports = []
+        
+        try:
+            for json_file in sorted(Config.REPORTS_DIR.glob('*.json'), reverse=True):
+                try:
+                    with open(json_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    reports.append({
+                        'id': data['rapport_id'],
+                        'contract_id': data['contract_id'],
+                        'timestamp': data['timestamp'],
+                        'total_fax': data['statistics']['total_fax'],
+                        'erreurs': data['statistics']['erreurs_totales'],
+                        'taux_reussite': data['statistics']['taux_reussite']
+                    })
+                except Exception as e:
+                    logger.warning(f"Erreur lors de la lecture de {json_file}: {e}")
+        
+        except Exception as e:
+            logger.error(f"Erreur lors de la liste des rapports: {e}")
+        
+        return reports
+    
+    @staticmethod
+    def generate_summary(report_data: Dict[str, Any]) -> str:
+        """Génère un résumé textuel du rapport"""
+        stats = report_data['statistics']
+        
+        summary = f"""
+╔══════════════════════════════════════════════════════════════╗
+║                    RÉSUMÉ DU RAPPORT                         ║
+╚══════════════════════════════════════════════════════════════╝
 
-ID: {report_json.get('report_id', 'N/A')}
-Contrat: {report_json.get('contract_id', 'N/A')}
-Periode: {report_json.get('date_debut', 'N/A')} a {report_json.get('date_fin', 'N/A')}
-Genere: {report_json.get('timestamp', 'N/A')}
+📋 Informations Générales
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • Rapport ID: {report_data['rapport_id']}
+  • Contrat: {report_data['contract_id']}
+  • Généré: {report_data['timestamp']}
+  • Période: {report_data['date_debut']} à {report_data['date_fin']}
 
-STATISTIQUES
-============
+📊 Statistiques FAX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • Total FAX: {stats['total_fax']}
+    - Envoyés (SF): {stats['fax_envoyes']}
+    - Reçus (RF): {stats['fax_recus']}
+  
+  • Pages:
+    - Totales: {stats['pages_totales']}
+    - Envoyées: {stats['pages_envoyees']}
+    - Reçues: {stats['pages_recues']}
 
-Total FAX: {stats.get('total_fax', 0)}
-  - Envoyes: {stats.get('fax_envoyes', 0)}
-  - Recus: {stats.get('fax_recus', 0)}
+⚠️  Erreurs et Qualité
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • Erreurs détectées: {stats['erreurs_totales']}
+  • Taux de réussite: {stats['taux_reussite']:.2f}%
+  • Taux d'erreur: {100 - stats['taux_reussite']:.2f}%
 
-Pages: {stats.get('pages_totales', 0)}
-  - Envoyees: {stats.get('pages_envoyees', 0)}
-  - Recues: {stats.get('pages_recues', 0)}
-
-Erreurs: {stats.get('erreurs_totales', 0)}
-Taux reussite: {stats.get('taux_reussite', 0):.2f}%
-
-ERREURS PAR TYPE
-================
 """
-    
-    for type_err, count in stats.get('erreurs_par_type', {}).items():
-        summary += f"{type_err}: {count}\n"
-    
-    summary += f"\nUTILISATEURS\n============\n"
-    
-    for user, count in sorted(stats.get('envois_par_utilisateur', {}).items()):
-        errors = stats.get('erreurs_par_utilisateur', {}).get(user, 0)
-        success = count - errors
-        rate = (success / count * 100) if count > 0 else 0
-        summary += f"{user}: {count} FAX ({rate:.1f}% OK)\n"
-    
-    return summary
+        
+        # Ajouter les statistiques par utilisateur si disponibles
+        if report_data.get('utilisateurs_stats'):
+            summary += "👥 Statistiques par Utilisateur\n"
+            summary += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            
+            for utilisateur, stats_user in report_data['utilisateurs_stats'].items():
+                total = stats_user['total']
+                valides = stats_user['valides']
+                taux = (valides / total * 100) if total > 0 else 0
+                
+                summary += f"  • {utilisateur}\n"
+                summary += f"    - Total: {total} | Valides: {valides} | Erreurs: {stats_user['erreurs']}\n"
+                summary += f"    - Réussite: {taux:.1f}%\n"
+        
+        return summary
