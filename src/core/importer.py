@@ -207,17 +207,21 @@ class FileImporter:
         
         for idx, row in df.iterrows():
             try:
+                # Skip header row (row 0 contains column names)
+                if idx == 0:
+                    continue
+                    
                 # Skip empty rows
                 if pd.isna(row.iloc[0]) and pd.isna(row.iloc[7]):
                     continue
                 
-                # Extract fields
-                fax_id = str(row.iloc[0]).strip() if idx < len(self.EXPECTED_COLUMNS) else None
-                user = str(row.iloc[1]).strip() if idx < len(self.EXPECTED_COLUMNS) else None
-                mode = str(row.iloc[3]).strip() if idx < len(self.EXPECTED_COLUMNS) else None
-                datetime_str = str(row.iloc[5]).strip() if idx < len(self.EXPECTED_COLUMNS) else None
-                number = str(row.iloc[7]).strip() if idx < len(self.EXPECTED_COLUMNS) else None
-                pages = row.iloc[10] if idx < len(self.EXPECTED_COLUMNS) else None
+                # Extract fields (check column exists first)
+                fax_id = str(row.iloc[0]).strip() if len(row) > 0 else None
+                user = str(row.iloc[1]).strip() if len(row) > 1 else None
+                mode = str(row.iloc[3]).strip() if len(row) > 3 else None
+                datetime_str = str(row.iloc[5]).strip() if len(row) > 5 else None
+                number = str(row.iloc[7]).strip() if len(row) > 7 else None
+                pages = row.iloc[10] if len(row) > 10 else None
                 
                 # Skip if essential fields are missing
                 if not number or number == 'nan':

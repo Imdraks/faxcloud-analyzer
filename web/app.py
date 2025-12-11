@@ -101,7 +101,16 @@ def api_import_file():
             logger.info(f"Importation du fichier: {file.filename}")
             
             # Importer le fichier
-            rows, import_info = importer.import_file(temp_path)
+            import_result = importer.import_file(temp_path)
+            
+            if not import_result.get('success'):
+                logger.error(f"Erreur import: {import_result.get('errors')}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Erreur lors de l\'import du fichier'
+                }), 400
+            
+            rows = import_result.get('data', [])
             logger.info(f"Fichier charge: {len(rows)} lignes")
             
             # Analyser les données avec paramètres par défaut

@@ -173,13 +173,13 @@ class FaxAnalyzer:
         """
         errors = []
         
-        # Extraire les données
-        fax_id = entry.get('fax_id', '').strip()
-        utilisateur = entry.get('utilisateur', '').strip()
-        mode = entry.get('mode', '').strip()
-        date_heure = entry.get('date_heure', '').strip()
-        numero_raw = entry.get('numero', '').strip()
-        pages_str = entry.get('pages', '').strip()
+        # Extraire les données (convertir en string d'abord)
+        fax_id = str(entry.get('fax_id', '')).strip()
+        utilisateur = str(entry.get('utilisateur', '')).strip()
+        mode = str(entry.get('mode', '')).strip()
+        date_heure = str(entry.get('date_heure', '')).strip()
+        numero_raw = str(entry.get('numero', '')).strip()
+        pages_str = str(entry.get('pages', '')).strip()
         
         # Valider utilisateur
         user_valid, user_errors = self.validate_utilisateur(utilisateur)
