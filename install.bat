@@ -2,11 +2,9 @@
 REM ═══════════════════════════════════════════════════════════════════════════
 REM FaxCloud Analyzer - Installation complète
 REM ═══════════════════════════════════════════════════════════════════════════
-REM Ce script installe Python, crée l'environnement virtuel et installe les dépendances
 
 setlocal enabledelayedexpansion
 
-REM Couleurs et styles
 cls
 echo.
 echo ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -21,41 +19,44 @@ REM ═════════════════════════�
 
 echo [ÉTAPE 1] Vérification de Python...
 echo ──────────────────────────────────────────────────────────────────────────
-python --version >nul 2>&1
+
+python --version
 if errorlevel 1 (
     echo.
-    echo ❌ ERREUR: Python n'est pas installé ou n'est pas dans le PATH
+    echo ❌ ERREUR: Python n'est pas trouvé
     echo.
-    echo Solution:
+    echo Pour corriger:
     echo   1. Téléchargez Python 3.8+ depuis https://www.python.org/downloads/
-    echo   2. Lors de l'installation, cochez "Add Python to PATH"
-    echo   3. Relancez ce script
+    echo   2. Cochez "Add Python to PATH" lors de l'installation
+    echo   3. Redémarrez votre ordinateur
+    echo   4. Relancez ce script
     echo.
-    pause
+    echo Appuyez sur une touche pour fermer...
+    pause >nul
     exit /b 1
 )
 
-REM Afficher la version
-for /f "tokens=*" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
-echo ✓ Python détecté: %PYTHON_VERSION%
+echo ✓ Python trouvé
 echo.
 
 REM ═══════════════════════════════════════════════════════════════════════════
 REM ÉTAPE 2: Créer l'environnement virtuel
 REM ═══════════════════════════════════════════════════════════════════════════
 
-echo [ÉTAPE 2] Configuration de l'environnement virtuel...
+echo [ÉTAPE 2] Création de l'environnement virtuel...
 echo ──────────────────────────────────────────────────────────────────────────
 
 if exist venv (
-    echo ✓ Environnement virtuel (venv) existe déjà
+    echo ✓ Environnement virtuel existe déjà
 ) else (
-    echo • Création de l'environnement virtuel...
+    echo • Création du venv (cela peut prendre quelques secondes)...
     python -m venv venv
     if errorlevel 1 (
         echo.
         echo ❌ ERREUR: Impossible de créer le venv
-        pause
+        echo.
+        echo Appuyez sur une touche pour fermer...
+        pause >nul
         exit /b 1
     )
     echo ✓ Environnement virtuel créé
@@ -73,7 +74,9 @@ call venv\Scripts\activate.bat
 if errorlevel 1 (
     echo.
     echo ❌ ERREUR: Impossible d'activer le venv
-    pause
+    echo.
+    echo Appuyez sur une touche pour fermer...
+    pause >nul
     exit /b 1
 )
 
@@ -87,45 +90,55 @@ REM ═════════════════════════�
 echo [ÉTAPE 4] Mise à jour de pip...
 echo ──────────────────────────────────────────────────────────────────────────
 
-python -m pip install --upgrade pip --quiet
+echo • Cela peut prendre quelques secondes...
+python -m pip install --upgrade pip
 if errorlevel 1 (
     echo ❌ ERREUR: Impossible de mettre à jour pip
-    pause
+    echo.
+    echo Appuyez sur une touche pour fermer...
+    pause >nul
     exit /b 1
 )
 
-for /f "tokens=*" %%i in ('pip --version') do set PIP_VERSION=%%i
-echo ✓ pip mis à jour: %PIP_VERSION%
+pip --version
+echo ✓ pip mis à jour
 echo.
 
 REM ═══════════════════════════════════════════════════════════════════════════
 REM ÉTAPE 5: Installer les dépendances
 REM ═══════════════════════════════════════════════════════════════════════════
 
-echo [ÉTAPE 5] Installation des dépendances de requirements.txt...
+echo [ÉTAPE 5] Installation des dépendances...
 echo ──────────────────────────────────────────────────────────────────────────
 
+echo • Installation en cours (cela peut prendre 2-3 minutes)...
 pip install -r requirements.txt
 if errorlevel 1 (
     echo.
     echo ❌ ERREUR: L'installation des dépendances a échoué
-    pause
+    echo.
+    echo Appuyez sur une touche pour fermer...
+    pause >nul
     exit /b 1
 )
 
 echo.
-echo ✓ Toutes les dépendances installées avec succès
+echo ✓ Toutes les dépendances installées
 echo.
 
 REM ═══════════════════════════════════════════════════════════════════════════
 REM ÉTAPE 6: Vérification finale
 REM ═══════════════════════════════════════════════════════════════════════════
 
-echo [ÉTAPE 6] Vérification de l'installation...
+echo [ÉTAPE 6] Vérification finale...
 echo ──────────────────────────────────────────────────────────────────────────
 
-echo • Packages installés:
-pip list
+pip list | findstr /i "pandas flask qrcode"
+if errorlevel 1 (
+    echo ⚠ Avertissement: Certains packages pourraient ne pas être installés
+) else (
+    echo ✓ Packages clés détectés
+)
 
 echo.
 
@@ -151,5 +164,5 @@ echo    Puis accédez à: http://localhost:5000
 echo.
 echo Pour plus d'informations, consultez: README.md
 echo.
-
-pause
+echo Appuyez sur une touche pour fermer...
+pause >nul
