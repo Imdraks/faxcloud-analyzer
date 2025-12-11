@@ -25,7 +25,7 @@ function displayReport(data) {
     
     const html = `
         <div class="section">
-            <h2>Rapport #${report.report_id.substring(0, 8)}</h2>
+            <h2>Rapport #${(report.rapport_id || report.report_id || 'N/A').substring(0, 8)}</h2>
             
             <div class="report-details">
                 <p><strong>Contrat:</strong> ${report.contract_id}</p>

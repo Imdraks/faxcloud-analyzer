@@ -229,14 +229,30 @@ class FileImporter:
                 numero_appele = str(row.iloc[7]).strip() if len(row) > 7 else None   # H: Numéro appelé ⭐
                 appel_intl = str(row.iloc[8]).strip() if len(row) > 8 else None      # I: Appel international
                 appel_interne = str(row.iloc[9]).strip() if len(row) > 9 else None   # J: Appel interne
-                pages_reelles = row.iloc[10] if len(row) > 10 else None              # K: Nombre pages réel
+                pages_raw = row.iloc[10] if len(row) > 10 else None                  # K: Nombre pages réel
                 duree = str(row.iloc[11]).strip() if len(row) > 11 else None         # L: Durée
-                pages_facturees = row.iloc[12] if len(row) > 12 else None            # M: Pages facturées
+                pages_facturees_raw = row.iloc[12] if len(row) > 12 else None        # M: Pages facturées
                 type_fact = str(row.iloc[13]).strip() if len(row) > 13 else None     # N: Type facturation
                 
                 # Skip if essential field (numero_appele) is missing
                 if not numero_appele or numero_appele == 'nan':
                     continue
+                
+                # Convert pages to float then int (handles decimals like 0.33, 1.00, etc.)
+                pages = None
+                if pd.notna(pages_raw) and str(pages_raw) != 'nan':
+                    try:
+                        pages = int(float(pages_raw))  # Convert 0.33 → 0, 1.67 → 1, 2.00 → 2
+                    except (ValueError, TypeError):
+                        pages = None
+                
+                # Convert pages_facturees similarly
+                pages_facturees = None
+                if pd.notna(pages_facturees_raw) and str(pages_facturees_raw) != 'nan':
+                    try:
+                        pages_facturees = int(float(pages_facturees_raw))
+                    except (ValueError, TypeError):
+                        pages_facturees = None
                 
                 # Create entry with all available information
                 entry = {
@@ -250,9 +266,9 @@ class FileImporter:
                     'numero': numero_appele,  # Renamed to 'numero' for analyzer compatibility
                     'appel_international': appel_intl if appel_intl and appel_intl != 'nan' else None,
                     'appel_interne': appel_interne if appel_interne and appel_interne != 'nan' else None,
-                    'pages': int(pages_reelles) if pd.notna(pages_reelles) and str(pages_reelles) != 'nan' else None,
+                    'pages': pages,  # Now handles decimals: converts to int (0, 1, 2, etc.)
                     'duree': duree if duree and duree != 'nan' else None,
-                    'pages_facturees': int(pages_facturees) if pd.notna(pages_facturees) and str(pages_facturees) != 'nan' else None,
+                    'pages_facturees': pages_facturees,
                     'type_facturation': type_fact if type_fact and type_fact != 'nan' else None
                 }
                 
