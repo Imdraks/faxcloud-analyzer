@@ -1,30 +1,29 @@
+#!/usr/bin/env python3
 """
 Point d'entrée principal - FaxCloud Analyzer
-Orchestration du workflow complet
+Orchestration du workflow complet via CLI
 """
 
+import sys
 import logging
 import argparse
-import sys
 from pathlib import Path
-from typing import Dict, Optional
 
 # Ajouter src au chemin Python
-sys.path.insert(0, str(Path(__file__).parent / "src" / "core"))
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-# Importer les modules
-import config
-import importer
-import analyzer
-import reporter
+from core.config import Config
+from core.db import Database
+from core.importer import FaxCloudImporter
+from core.analyzer import FaxAnalyzer
+from core.reporter import ReportGenerator
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION LOGGING
 # ═══════════════════════════════════════════════════════════════════════════
 
-config.ensure_directories()
-config.setup_logging()
-logger = logging.getLogger(__name__)
+Config.setup_logging()
+logger = Config.get_logger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ORCHESTRATION
@@ -33,9 +32,9 @@ logger = logging.getLogger(__name__)
 def process_export(
     file_path: str,
     contract_id: str,
-    date_debut: str,
-    date_fin: str
-) -> Dict:
+    date_debut: str = "2024-01-01",
+    date_fin: str = "2024-12-31"
+) -> dict:
     """
     Traite un export FaxCloud complet
     Importe → Analyse → Rapporte
@@ -49,86 +48,109 @@ def process_export(
     Returns:
         Résultat du traitement (success, rapport_id, etc.)
     """
-    logger.info("=" * 70)
-    logger.info(f"TRAITEMENT EXPORT: {contract_id} ({date_debut} à {date_fin})")
-    logger.info("=" * 70)
-    
-    # Étape 1: Importer
-    logger.info("\n📥 ÉTAPE 1: IMPORTATION")
-    logger.info("-" * 70)
-    
-    import_result = importer.import_faxcloud_export(file_path)
-    
-    if not import_result["success"]:
-        logger.error(f"✗ Erreur importation: {import_result['message']}")
+    try:
+        logger.info("=" * 70)
+        logger.info(f"TRAITEMENT EXPORT: {contract_id} ({date_debut} à {date_fin})")
+        logger.info("=" * 70)
+        
+        # ─────────────────────────────────────────────────────────────────
+        # ÉTAPE 1: IMPORTATION
+        # ─────────────────────────────────────────────────────────────────
+        
+        logger.info("\n📥 ÉTAPE 1: IMPORTATION")
+        logger.info("-" * 70)
+        
+        importer = FaxCloudImporter()
+        rows, import_info = importer.import_file(file_path)
+        
+        logger.info(f"✓ Fichier importé: {import_info['file_name']}")
+        logger.info(f"  • Format: {import_info['format']}")
+        logger.info(f"  • Lignes: {import_info['total_rows']}")
+        logger.info(f"  • Taille: {import_info['file_size'] / 1024:.2f} KB")
+        
+        # ─────────────────────────────────────────────────────────────────
+        # ÉTAPE 2: ANALYSE
+        # ─────────────────────────────────────────────────────────────────
+        
+        logger.info("\n📊 ÉTAPE 2: ANALYSE")
+        logger.info("-" * 70)
+        
+        analyzer = FaxAnalyzer()
+        analysis = analyzer.analyze_data(
+            rows,
+            contract_id,
+            date_debut,
+            date_fin
+        )
+        
+        stats = analysis['statistics']
+        logger.info(f"✓ Analyse complète:")
+        logger.info(f"  • Total FAX: {stats['total_fax']}")
+        logger.info(f"  • Envoyés: {stats['fax_envoyes']}, Reçus: {stats['fax_recus']}")
+        logger.info(f"  • Pages: {stats['pages_totales']}")
+        logger.info(f"  • Erreurs: {stats['erreurs_totales']}")
+        logger.info(f"  • Taux réussite: {stats['taux_reussite']:.2f}%")
+        
+        # ─────────────────────────────────────────────────────────────────
+        # ÉTAPE 3: RAPPORT ET QR CODE
+        # ─────────────────────────────────────────────────────────────────
+        
+        logger.info("\n📝 ÉTAPE 3: RAPPORT ET QR CODE")
+        logger.info("-" * 70)
+        
+        db = Database()
+        reporter = ReportGenerator(db=db)
+        
+        # Ajouter le chemin source au rapport
+        analysis['fichier_source'] = file_path
+        
+        report = reporter.generate_report(analysis)
+        
+        if not report['success']:
+            logger.error(f"✗ Erreur génération rapport: {report['message']}")
+            return {
+                "success": False,
+                "message": report['message'],
+                "step": "reporter"
+            }
+        
+        logger.info(f"✓ {report['message']}")
+        logger.info(f"  • ID: {report['rapport_id']}")
+        logger.info(f"  • URL: {report['report_url']}")
+        if report['qr_path']:
+            logger.info(f"  • QR Code: {report['qr_path']}")
+        
+        # ─────────────────────────────────────────────────────────────────
+        # ÉTAPE 4: AFFICHER LE RÉSUMÉ
+        # ─────────────────────────────────────────────────────────────────
+        
+        logger.info("\n📋 RÉSUMÉ")
+        logger.info("-" * 70)
+        
+        report_json = reporter.load_report_json(report['rapport_id'])
+        if report_json:
+            summary = reporter.generate_summary(report_json)
+            logger.info(summary)
+        
+        logger.info("=" * 70)
+        logger.info("✅ TRAITEMENT RÉUSSI")
+        logger.info("=" * 70)
+        
         return {
-            "success": False,
-            "message": import_result["message"],
-            "step": "import"
+            "success": True,
+            "message": "Traitement réussi",
+            "rapport_id": report['rapport_id'],
+            "report_url": report['report_url'],
+            "qr_path": report['qr_path']
         }
     
-    logger.info(f"✓ {import_result['message']}")
-    
-    # Étape 2: Analyser
-    logger.info("\n📊 ÉTAPE 2: ANALYSE")
-    logger.info("-" * 70)
-    
-    analysis = analyzer.analyze_data(
-        import_result["rows"],
-        contract_id,
-        date_debut,
-        date_fin
-    )
-    
-    stats = analysis["statistics"]
-    logger.info(f"✓ Analyse complète:")
-    logger.info(f"  • Total FAX: {stats['total_fax']}")
-    logger.info(f"  • Envoyés: {stats['fax_envoyes']}, Reçus: {stats['fax_recus']}")
-    logger.info(f"  • Pages: {stats['pages_totales']}")
-    logger.info(f"  • Erreurs: {stats['erreurs_totales']} ({100-stats['taux_reussite']:.2f}%)")
-    logger.info(f"  • Taux réussite: {stats['taux_reussite']:.2f}%")
-    
-    # Étape 3: Rapporter
-    logger.info("\n📝 ÉTAPE 3: RAPPORT ET QR CODE")
-    logger.info("-" * 70)
-    
-    report = reporter.generate_report(analysis)
-    
-    if not report["success"]:
-        logger.error(f"✗ Erreur génération rapport: {report['message']}")
+    except Exception as e:
+        logger.error(f"❌ Erreur lors du traitement: {e}", exc_info=True)
         return {
             "success": False,
-            "message": report["message"],
-            "step": "reporter"
+            "message": str(e),
+            "error": str(e)
         }
-    
-    logger.info(f"✓ {report['message']}")
-    logger.info(f"  • ID: {report['report_id']}")
-    logger.info(f"  • URL: {report['report_url']}")
-    if report['qr_path']:
-        logger.info(f"  • QR Code: {report['qr_path']}")
-    
-    # Étape 4: Afficher le résumé
-    logger.info("\n📋 RÉSUMÉ")
-    logger.info("-" * 70)
-    
-    report_json = reporter.load_report_json(report['report_id'])
-    if report_json:
-        summary = reporter.generate_summary(report_json)
-        logger.info(summary)
-    
-    logger.info("=" * 70)
-    logger.info("✅ TRAITEMENT RÉUSSI")
-    logger.info("=" * 70)
-    
-    return {
-        "success": True,
-        "message": "Traitement réussi",
-        "report_id": report['report_id'],
-        "report_url": report['report_url'],
-        "qr_path": report['qr_path']
-    }
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CLI
@@ -138,7 +160,15 @@ def main():
     """Point d'entrée principal"""
     
     parser = argparse.ArgumentParser(
-        description="FaxCloud Analyzer - Analyse automatique des exports FaxCloud"
+        description="FaxCloud Analyzer - Analyse automatique des exports FaxCloud",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemples:
+  python main.py init
+  python main.py import --file data.csv --contract "CLIENT_001" --start 2024-01-01 --end 2024-12-31
+  python main.py list
+  python main.py view --report-id <uuid>
+        """
     )
     
     parser.add_argument(
@@ -185,8 +215,15 @@ def main():
     
     if args.command == "init":
         logger.info("Initialisation du projet...")
-        config.ensure_directories()
-        logger.info("Projet initiialise avec succes")
+        try:
+            Config.ensure_directories()
+            db = Database()
+            db.initialize()
+            logger.info("✅ Projet initialisé avec succès")
+            logger.info(f"   Base de données: {Config.DATABASE_CONFIG['path']}")
+        except Exception as e:
+            logger.error(f"❌ Erreur initialisation: {e}")
+            sys.exit(1)
         return
     
     # ─────────────────────────────────────────────────────────────────────
@@ -196,7 +233,7 @@ def main():
     elif args.command == "import":
         if not args.file:
             logger.error("❌ --file requis pour la commande 'import'")
-            return
+            sys.exit(1)
         
         result = process_export(
             args.file,
@@ -206,11 +243,11 @@ def main():
         )
         
         if result["success"]:
-            logger.info(f"\n✅ Rapport généré: {result['report_id']}")
+            logger.info(f"\n✅ Rapport généré: {result['rapport_id']}")
+            sys.exit(0)
         else:
             logger.error(f"\n❌ Erreur: {result['message']}")
-        
-        return result
+            sys.exit(1)
     
     # ─────────────────────────────────────────────────────────────────────
     # COMMANDE: list
@@ -220,6 +257,7 @@ def main():
         logger.info("📋 Liste des rapports")
         logger.info("-" * 70)
         
+        reporter = ReportGenerator()
         reports = reporter.list_reports()
         
         if not reports:
@@ -243,16 +281,17 @@ def main():
     elif args.command == "view":
         if not args.report_id:
             logger.error("❌ --report-id requis pour la commande 'view'")
-            return
+            sys.exit(1)
         
         logger.info(f"📖 Affichage rapport: {args.report_id}")
         logger.info("-" * 70)
         
+        reporter = ReportGenerator()
         report_json = reporter.load_report_json(args.report_id)
         
         if not report_json:
             logger.error(f"Rapport non trouvé: {args.report_id}")
-            return
+            sys.exit(1)
         
         summary = reporter.generate_summary(report_json)
         logger.info(summary)
@@ -261,24 +300,13 @@ def main():
         errors = [e for e in report_json['entries'] if not e['valide']]
         if errors:
             logger.info("\n⚠️  ENTRÉES AVEC ERREURS:\n")
-            for entry in errors:
+            for entry in errors[:20]:  # Limiter à 20 pour la lisibilité
                 logger.info(f"  • {entry['fax_id']} ({entry['utilisateur']})")
                 logger.info(f"    Numéro: {entry['numero_original']}")
                 logger.info(f"    Erreurs: {', '.join(entry['erreurs'])}\n")
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# EXPORTS POUR UTILISATION PROGRAMMÉE
-# ═══════════════════════════════════════════════════════════════════════════
-
-__all__ = [
-    'process_export',
-    'config',
-    'importer',
-    'analyzer',
-    'reporter'
-]
-
+            
+            if len(errors) > 20:
+                logger.info(f"  ... et {len(errors) - 20} autres erreurs")
 
 # ═══════════════════════════════════════════════════════════════════════════
 
