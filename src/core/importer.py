@@ -43,7 +43,7 @@ class FileImporter:
 
     def __init__(self, import_dir: str = None):
         """Initialize importer with optional custom import directory."""
-        self.import_dir = import_dir or Config.IMPORT_DIR
+        self.import_dir = import_dir or Config.IMPORTS_DIR
         self.detected_encoding = None
         self.detected_delimiter = None
         self.file_format = None

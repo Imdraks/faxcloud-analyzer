@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from core.config import Config
 from core.db import Database
 from core.reporter import ReportGenerator
-from core.importer import FaxCloudImporter
+from core.importer import FileImporter
 from core.analyzer import FaxAnalyzer
 import logging
 
@@ -35,7 +35,7 @@ CORS(app)
 # Initialiser les modules
 db = Database()
 reporter = ReportGenerator(db=db)
-importer = FaxCloudImporter()
+importer = FileImporter()
 analyzer = FaxAnalyzer()
 
 # ═══════════════════════════════════════════════════════════════════════════

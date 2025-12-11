@@ -27,48 +27,37 @@
                 <h2>📥 Importer un Export FaxCloud</h2>
                 
                 <form id="uploadForm" class="form">
-                    <!-- Sélection du fichier -->
-                    <div class="form-group">
-                        <label for="fileInput" class="label">Fichier (CSV ou XLSX)</label>
-                        <div class="file-input-wrapper">
-                            <input type="file" id="fileInput" name="file" accept=".csv,.xlsx,.xls" required>
-                            <span class="file-input-label">Choisir un fichier...</span>
-                        </div>
-                        <small>Formats supportés: CSV, XLSX</small>
-                    </div>
-
-                    <!-- Identifiant du contrat -->
-                    <div class="form-group">
-                        <label for="contractId" class="label">ID du Contrat</label>
-                        <input type="text" id="contractId" name="contract_id" value="CONTRACT_001" required>
-                    </div>
-
-                    <!-- Dates -->
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="dateDebut" class="label">Date de Début</label>
-                            <input type="date" id="dateDebut" name="date_debut" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="dateFin" class="label">Date de Fin</label>
-                            <input type="date" id="dateFin" name="date_fin" required>
+                    <!-- Zone Drag & Drop -->
+                    <div class="drag-drop-zone" id="dragDropZone">
+                        <div class="drag-drop-content">
+                            <p class="drag-drop-icon">📁</p>
+                            <p class="drag-drop-text">Glissez-déposez votre fichier CSV ou XLSX ici</p>
+                            <p class="drag-drop-or">— OU —</p>
+                            <div class="file-input-wrapper">
+                                <input type="file" id="fileInput" name="file" accept=".csv,.xlsx,.xls" required>
+                                <span class="file-input-label">Cliquez pour sélectionner</span>
+                            </div>
+                            <small>Formats supportés: CSV, XLSX</small>
                         </div>
                     </div>
 
-                    <!-- Bouton Submit -->
-                    <button type="submit" class="btn btn-primary">Analyser le fichier</button>
+                    <!-- Indicateur de progression -->
+                    <div id="uploadProgress" class="upload-progress hidden">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <p id="uploadStatus">Traitement en cours...</p>
+                    </div>
+
+                    <!-- Message de résultat -->
+                    <div id="uploadResult" class="upload-result hidden"></div>
                 </form>
+            </section>
 
-                <!-- Indicateur de progression -->
-                <div id="uploadProgress" class="upload-progress hidden">
-                    <div class="progress-bar">
-                        <div class="progress-fill"></div>
-                    </div>
-                    <p id="uploadStatus">Traitement en cours...</p>
-                </div>
-
-                <!-- Message de résultat -->
-                <div id="uploadResult" class="upload-result hidden"></div>
+            <!-- SECTION RÉSULTAT -->
+            <section class="section" id="resultSection" style="display: none;">
+                <h2>📊 Résultat de l'Analyse</h2>
+                <div id="resultContent"></div>
             </section>
 
             <!-- SECTION DERNIER RAPPORT -->
@@ -162,6 +151,4 @@
         </footer>
     </div>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-</body>
-</html>
+    <script src="{{ url_for('static', filename='js/import.js') }}"></script>
