@@ -26,19 +26,22 @@ class FileImporter:
     # Possible delimiters for CSV
     POSSIBLE_DELIMITERS = [';', ',', '\t', '|']
     
-    # Expected columns
+    # Expected columns (FaxCloud export format)
     EXPECTED_COLUMNS = {
-        'fax_id': 0,           # A
-        'user': 1,             # B
-        'empty_c': 2,          # C
-        'mode': 3,             # D
-        'empty_e': 4,          # E
-        'datetime': 5,         # F
-        'empty_g': 6,          # G
-        'number': 7,           # H
-        'empty_i': 8,          # I
-        'empty_j': 9,          # J
-        'pages': 10            # K
+        'fax_id': 0,                    # A: Fax ID
+        'utilisateur': 1,               # B: Nom et prénom utilisateur
+        'revendeur': 2,                 # C: Revendeur
+        'mode': 3,                      # D: Mode (SF/RF)
+        'adresse_messagerie': 4,        # E: Adresse de messagerie
+        'datetime': 5,                  # F: Date et heure du fax
+        'numero_envoi': 6,              # G: Numéro d'envoi
+        'numero_appele': 7,             # H: Numéro appelé ⭐ NUMÉRO PRINCIPAL
+        'appel_international': 8,       # I: Appel international
+        'appel_interne': 9,             # J: Appel interne
+        'pages_reelles': 10,            # K: Nombre de page réel
+        'duree': 11,                    # L: Durée
+        'pages_facturees': 12,          # M: Pages facturées
+        'type_facturation': 13          # N: Type facturation
     }
 
     def __init__(self, import_dir: str = None):
@@ -215,26 +218,42 @@ class FileImporter:
                 if pd.isna(row.iloc[0]) and pd.isna(row.iloc[7]):
                     continue
                 
-                # Extract fields (check column exists first)
-                fax_id = str(row.iloc[0]).strip() if len(row) > 0 else None
-                user = str(row.iloc[1]).strip() if len(row) > 1 else None
-                mode = str(row.iloc[3]).strip() if len(row) > 3 else None
-                datetime_str = str(row.iloc[5]).strip() if len(row) > 5 else None
-                number = str(row.iloc[7]).strip() if len(row) > 7 else None
-                pages = row.iloc[10] if len(row) > 10 else None
+                # Extract fields with correct column names
+                fax_id = str(row.iloc[0]).strip() if len(row) > 0 else None          # A: Fax ID
+                utilisateur = str(row.iloc[1]).strip() if len(row) > 1 else None     # B: Utilisateur
+                revendeur = str(row.iloc[2]).strip() if len(row) > 2 else None       # C: Revendeur
+                mode = str(row.iloc[3]).strip() if len(row) > 3 else None            # D: Mode (SF/RF)
+                adresse_msg = str(row.iloc[4]).strip() if len(row) > 4 else None     # E: Adresse messagerie
+                datetime_str = str(row.iloc[5]).strip() if len(row) > 5 else None    # F: Date/Heure
+                numero_envoi = str(row.iloc[6]).strip() if len(row) > 6 else None    # G: Numéro d'envoi
+                numero_appele = str(row.iloc[7]).strip() if len(row) > 7 else None   # H: Numéro appelé ⭐
+                appel_intl = str(row.iloc[8]).strip() if len(row) > 8 else None      # I: Appel international
+                appel_interne = str(row.iloc[9]).strip() if len(row) > 9 else None   # J: Appel interne
+                pages_reelles = row.iloc[10] if len(row) > 10 else None              # K: Nombre pages réel
+                duree = str(row.iloc[11]).strip() if len(row) > 11 else None         # L: Durée
+                pages_facturees = row.iloc[12] if len(row) > 12 else None            # M: Pages facturées
+                type_fact = str(row.iloc[13]).strip() if len(row) > 13 else None     # N: Type facturation
                 
-                # Skip if essential fields are missing
-                if not number or number == 'nan':
+                # Skip if essential field (numero_appele) is missing
+                if not numero_appele or numero_appele == 'nan':
                     continue
                 
-                # Create entry
+                # Create entry with all available information
                 entry = {
                     'fax_id': fax_id if fax_id and fax_id != 'nan' else None,
-                    'user': user if user and user != 'nan' else None,
+                    'utilisateur': utilisateur if utilisateur and utilisateur != 'nan' else None,
+                    'revendeur': revendeur if revendeur and revendeur != 'nan' else None,
                     'mode': mode if mode and mode != 'nan' else None,
-                    'datetime': datetime_str if datetime_str and datetime_str != 'nan' else None,
-                    'number': number,
-                    'pages': int(pages) if pd.notna(pages) and str(pages) != 'nan' else None
+                    'adresse_messagerie': adresse_msg if adresse_msg and adresse_msg != 'nan' else None,
+                    'date_heure': datetime_str if datetime_str and datetime_str != 'nan' else None,
+                    'numero_envoi': numero_envoi if numero_envoi and numero_envoi != 'nan' else None,
+                    'numero': numero_appele,  # Renamed to 'numero' for analyzer compatibility
+                    'appel_international': appel_intl if appel_intl and appel_intl != 'nan' else None,
+                    'appel_interne': appel_interne if appel_interne and appel_interne != 'nan' else None,
+                    'pages': int(pages_reelles) if pd.notna(pages_reelles) and str(pages_reelles) != 'nan' else None,
+                    'duree': duree if duree and duree != 'nan' else None,
+                    'pages_facturees': int(pages_facturees) if pd.notna(pages_facturees) and str(pages_facturees) != 'nan' else None,
+                    'type_facturation': type_fact if type_fact and type_fact != 'nan' else None
                 }
                 
                 entries.append(entry)
