@@ -1,17 +1,18 @@
 @echo off
-REM Démarrage du serveur web FaxCloud Analyzer
-REM Ouvre automatiquement le navigateur
+REM =============================================================================
+REM FaxCloud Analyzer - Demarrage du serveur web
+REM =============================================================================
 
 cd /d "%~dp0"
 
 REM Activer l'environnement virtuel
-call .\venv\Scripts\Activate.ps1
+call venv\Scripts\activate.bat
 
-REM Démarrer le serveur Flask
+REM Demarrer le serveur Flask
 echo.
-echo ========================================
-echo  Démarrage du serveur FaxCloud Analyzer
-echo ========================================
+echo =========================================
+echo  Demarrage du serveur FaxCloud Analyzer
+echo =========================================
 echo.
 echo Ouverture: http://localhost:5000
 echo.
