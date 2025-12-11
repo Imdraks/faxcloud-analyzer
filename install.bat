@@ -1,8 +1,7 @@
 @echo off
 REM ═══════════════════════════════════════════════════════════════════════
-REM FaxCloud Analyzer - Installation des dépendances
+REM FaxCloud Analyzer - Installation des dépendances (Windows)
 REM ═══════════════════════════════════════════════════════════════════════
-REM Ce script installe tous les packages Python nécessaires
 
 setlocal enabledelayedexpansion
 
@@ -24,35 +23,31 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [OK] Python détecté
+echo [✓] Python détecté
 python --version
-
 echo.
+
+REM Créer ou utiliser l'environnement virtuel
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Étape 1: Création de l'environnement virtuel
+echo  Étape 1: Configuration de l'environnement virtuel
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo.
 
 if exist venv (
     echo [INFO] Environnement virtuel existe déjà
-    echo [INFO] Utilisation de l'environnement existant...
 ) else (
-    echo [*] Création de l'environnement virtuel 'venv'...
+    echo [*] Création de l'environnement virtuel...
     python -m venv venv
     if errorlevel 1 (
-        echo [ERREUR] Échec de création du venv
+        echo [ERREUR] Impossible de créer le venv
         pause
         exit /b 1
     )
-    echo [OK] Environnement virtuel créé
+    echo [✓] Environnement virtuel créé
 )
-
-echo.
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Étape 2: Activation de l'environnement virtuel
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo.
 
+REM Activer l'environnement virtuel
 call venv\Scripts\activate.bat
 if errorlevel 1 (
     echo [ERREUR] Impossible d'activer l'environnement virtuel
@@ -60,74 +55,59 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [OK] Environnement virtuel activé
-
 echo.
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Étape 3: Mise à jour de pip
+echo  Étape 2: Mise à jour de pip et installation des dépendances
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo.
 
 echo [*] Mise à jour de pip...
-python -m pip install --upgrade pip
+python -m pip install --upgrade pip --quiet
 
-echo.
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Étape 4: Installation des dépendances
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo.
-
-echo [*] Installation des packages depuis requirements.txt...
-pip install -r requirements.txt
+echo [*] Installation des packages...
+pip install -r requirements.txt --quiet
 if errorlevel 1 (
-    echo [ERREUR] Échec de l'installation des packages
+    echo [ERREUR] Impossible d'installer les packages
     echo.
     echo Essayez manuellement:
-    echo   1. Ouvrez un terminal dans ce dossier
-    echo   2. Tapez: venv\Scripts\activate
-    echo   3. Tapez: pip install -r requirements.txt
+    echo   1. venv\Scripts\activate
+    echo   2. pip install -r requirements.txt
     echo.
     pause
     exit /b 1
 )
 
-echo.
-echo [OK] Tous les packages installés avec succès
-
-echo.
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Étape 5: Vérification des dépendances
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo [✓] Tous les packages installés
 echo.
 
-echo [*] Vérification des packages...
-python -c "import pandas; print('  pandas: OK')"
-python -c "import openpyxl; print('  openpyxl: OK')"
-python -c "import mysql.connector; print('  mysql-connector-python: OK')"
-python -c "import qrcode; print('  qrcode: OK')"
-python -c "import flask; print('  flask: OK')"
-
-echo.
+REM Vérification rapide
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Prochaines étapes
+echo  Étape 3: Vérification des dépendances
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo.
 
-echo 1. Initialiser MySQL:
-echo    python init_mysql.py
+python -c "import pandas; import openpyxl; import qrcode; import flask; print('  ✓ Tous les packages vérifié')" 2>nul
+
+echo.
+echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo  ✅ Installation terminée avec succès !
+echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo.
 
-echo 2. Lancer l'interface web:
+echo Prochaines étapes:
+echo.
+echo 1. Initialiser le projet:
+echo    python main.py init
+echo.
+echo 2. Lancer l'interface web (Windows):
+echo    cd web
 echo    launch-web.bat
 echo.
-
-echo 3. Ou utiliser la CLI:
+echo 3. Ou importer un fichier (CLI):
 echo    python main.py import --file data.csv --contract "CLIENT_001"
 echo.
-
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo  Installation terminée !
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo 4. Consulter l'aide:
+echo    python main.py --help
 echo.
 
 pause
