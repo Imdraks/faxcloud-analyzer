@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Point d'entrée principal - FaxCloud Analyzer
-Orchestration du workflow complet via CLI
+FaxCloud Analyzer - Point d'entrée principal
+Orchestration du workflow complet: Import → Analyse → Rapport
 """
 
 import sys
@@ -13,40 +14,41 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from core.config import Config
-from core.db import Database
-from core.importer import FaxCloudImporter
+from core.importer import FileImporter
 from core.analyzer import FaxAnalyzer
 from core.reporter import ReportGenerator
+from core import validation_rules
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CONFIGURATION LOGGING
+# INITIALISATION
 # ═══════════════════════════════════════════════════════════════════════════
 
+Config.ensure_directories()
 Config.setup_logging()
 logger = Config.get_logger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ORCHESTRATION
+# FONCTIONS PRINCIPALES
 # ═══════════════════════════════════════════════════════════════════════════
 
 def process_export(
     file_path: str,
-    contract_id: str,
-    date_debut: str = "2024-01-01",
-    date_fin: str = "2024-12-31"
+    contract_id: str = None,
+    date_debut: str = None,
+    date_fin: str = None
 ) -> dict:
     """
     Traite un export FaxCloud complet
-    Importe → Analyse → Rapporte
+    PHASE 1: Import → PHASE 2: Analyse → PHASE 3: Rapport
     
     Args:
-        file_path: Chemin du fichier à importer
-        contract_id: ID du contrat
-        date_debut: Date de début (YYYY-MM-DD)
-        date_fin: Date de fin (YYYY-MM-DD)
+        file_path: Chemin du fichier CSV/XLSX
+        contract_id: ID du contrat (optionnel)
+        date_debut: Date de début YYYY-MM-DD (optionnel)
+        date_fin: Date de fin YYYY-MM-DD (optionnel)
     
     Returns:
-        Résultat du traitement (success, rapport_id, etc.)
+        dict: {success, report_id, message, ...}
     """
     try:
         logger.info("=" * 70)
