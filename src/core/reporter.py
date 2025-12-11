@@ -81,7 +81,7 @@ class ReportGenerator:
     
     def generate_report(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Génère un rapport complet (JSON + QR code)
+        Génère un rapport complet et le sauvegarde en BDD
         Retourne les informations du rapport généré
         """
         try:
@@ -102,9 +102,6 @@ class ReportGenerator:
                 'report_url': None
             }
             
-            # Sauvegarder le JSON
-            json_path = self.save_report_json(report_data)
-            
             # Générer l'URL et le QR code
             report_url = f"{Config.BASE_REPORT_URL}/{report_id}"
             qr_path = self.generate_qr_code(report_id, report_url)
@@ -113,9 +110,10 @@ class ReportGenerator:
             report_data['qr_path'] = qr_path
             report_data['report_url'] = report_url
             
-            # Sauvegarder dans la DB si disponible
+            # Sauvegarder dans la DB (principal)
             if self.db:
                 self.db.save_report(report_data)
+                logger.info(f"Rapport {report_id} sauvegardé en BDD")
             
             logger.info(f"Rapport complet généré: {report_id}")
             
@@ -124,7 +122,6 @@ class ReportGenerator:
                 'rapport_id': report_id,
                 'report_url': report_url,
                 'qr_path': qr_path,
-                'json_path': json_path,
                 'message': f"Rapport {report_id} généré avec succès"
             }
         
@@ -138,8 +135,15 @@ class ReportGenerator:
     
     @staticmethod
     def load_report_json(report_id: str) -> Optional[Dict[str, Any]]:
-        """Charge un rapport JSON"""
+        """Charge un rapport depuis la base de données"""
         try:
+            # Essayer de charger depuis la BDD d'abord
+            db = Database()
+            report = db.get_report(report_id)
+            if report:
+                return report
+            
+            # Fallback vers JSON pour compatibilité avec anciens rapports
             json_path = Config.REPORTS_DIR / f"{report_id}.json"
             
             if not json_path.exists():
@@ -153,32 +157,13 @@ class ReportGenerator:
             logger.error(f"Erreur lors de la lecture du rapport: {e}")
             return None
     
-    @staticmethod
-    def list_reports() -> List[Dict[str, Any]]:
-        """Liste tous les rapports disponibles"""
-        reports = []
+    def list_reports(self) -> List[Dict[str, Any]]:
+        """Liste tous les rapports disponibles depuis la BDD"""
+        if not self.db:
+            logger.warning("Base de données non disponible")
+            return []
         
-        try:
-            for json_file in sorted(Config.REPORTS_DIR.glob('*.json'), reverse=True):
-                try:
-                    with open(json_file, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                    
-                    reports.append({
-                        'id': data['rapport_id'],
-                        'contract_id': data['contract_id'],
-                        'timestamp': data['timestamp'],
-                        'total_fax': data['statistics']['total_fax'],
-                        'erreurs': data['statistics']['erreurs_totales'],
-                        'taux_reussite': data['statistics']['taux_reussite']
-                    })
-                except Exception as e:
-                    logger.warning(f"Erreur lors de la lecture de {json_file}: {e}")
-        
-        except Exception as e:
-            logger.error(f"Erreur lors de la liste des rapports: {e}")
-        
-        return reports
+        return self.db.list_reports()
     
     @staticmethod
     def generate_summary(report_data: Dict[str, Any]) -> str:

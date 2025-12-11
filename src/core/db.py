@@ -1,5 +1,5 @@
 """
-Module de gestion de la base de données SQLite
+Module de gestion de la base de données SQLite / MySQL
 Gère la création, l'initialisation et les opérations CRUD
 """
 
@@ -11,7 +11,7 @@ from uuid import UUID
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
-from .config import Config
+from .config import Config, DATABASE_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +92,21 @@ CREATE INDEX IF NOT EXISTS idx_analysis_report ON analysis_history(report_id);
 # ═══════════════════════════════════════════════════════════════════════════
 
 class Database:
-    """Gestionnaire de base de données SQLite"""
+    """Gestionnaire de base de données (SQLite ou MySQL selon la config)"""
+    
+    def __new__(cls, db_path: Optional[str] = None):
+        """Factory pattern pour retourner la bonne classe de DB"""
+        if DATABASE_TYPE == 'mysql':
+            from .db_mysql import DatabaseMySQL
+            logger.info(f"Utilisation de MySQL: {Config.DATABASE_CONFIG['host']}:{Config.DATABASE_CONFIG.get('port', 3306)}")
+            return DatabaseMySQL(Config.DATABASE_CONFIG)
+        else:
+            # SQLite
+            logger.info(f"Utilisation de SQLite: {Config.DATABASE_CONFIG['path']}")
+            return super().__new__(cls)
     
     def __init__(self, db_path: Optional[str] = None):
-        """Initialise la connexion à la base de données"""
+        """Initialise la connexion à la base de données SQLite"""
         if db_path is None:
             db_path = Config.DATABASE_CONFIG['path']
         
@@ -262,6 +273,41 @@ class Database:
         except sqlite3.Error as e:
             logger.error(f"Erreur lors de la liste des rapports: {e}")
             return []
+        finally:
+            conn.close()
+    
+    def get_report(self, report_id: str) -> Optional[Dict[str, Any]]:
+        """Récupère un rapport complet depuis la BDD"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT id, date_rapport, contract_id, date_debut, date_fin,
+                       fichier_source, donnees_json, qr_path, url_rapport
+                FROM reports
+                WHERE id = ?
+            """, (report_id,))
+            
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            # Charger le JSON stocké
+            report_data = json.loads(row[6])
+            
+            # Ajouter les chemins si disponibles
+            if row[7]:
+                report_data['qr_path'] = row[7]
+            if row[8]:
+                report_data['report_url'] = row[8]
+            
+            return report_data
+        
+        except sqlite3.Error as e:
+            logger.error(f"Erreur lors de la lecture du rapport: {e}")
+            return None
         finally:
             conn.close()
     

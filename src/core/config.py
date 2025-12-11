@@ -28,14 +28,30 @@ DATABASE_DIR = DATA_DIR / "database"
 # CONFIGURATION BASE DE DONNÉES
 # ═══════════════════════════════════════════════════════════════════════════
 
-DATABASE_PATH = DATABASE_DIR / "faxcloud.db"
+# Type de BDD: 'mysql' ou 'sqlite'
+DATABASE_TYPE = os.getenv('DATABASE_TYPE', 'mysql')
 
-DATABASE_CONFIG = {
-    "type": "sqlite",
-    "path": str(DATABASE_PATH),
-    "timeout": 5.0,
-    "check_same_thread": False
-}
+if DATABASE_TYPE == 'mysql':
+    # Configuration MySQL (WampServer/phpMyAdmin)
+    DATABASE_CONFIG = {
+        "type": "mysql",
+        "host": os.getenv('DB_HOST', 'localhost'),
+        "port": int(os.getenv('DB_PORT', 3306)),
+        "user": os.getenv('DB_USER', 'root'),
+        "password": os.getenv('DB_PASSWORD', ''),
+        "database": os.getenv('DB_NAME', 'faxcloud_analyzer'),
+        "charset": 'utf8mb4',
+        "autocommit": True
+    }
+else:
+    # Configuration SQLite (fallback)
+    DATABASE_PATH = DATABASE_DIR / "faxcloud.db"
+    DATABASE_CONFIG = {
+        "type": "sqlite",
+        "path": str(DATABASE_PATH),
+        "timeout": 5.0,
+        "check_same_thread": False
+    }
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION LOGGING
