@@ -1,5 +1,8 @@
 /* Report page */
 
+let allEntries = [];
+let currentFilter = 'all';
+
 function loadReport() {
     const reportId = window.location.pathname.split('/').pop();
     
@@ -8,6 +11,7 @@ function loadReport() {
         .then(data => {
             if (data.success) {
                 displayReport(data);
+                loadEntries(reportId);
             } else {
                 document.getElementById('reportContent').innerHTML = 
                     '<p class="error">Rapport non trouvé</p>';
@@ -79,6 +83,120 @@ function displayReport(data) {
     `;
     
     document.getElementById('reportContent').innerHTML = html;
+}
+
+function loadEntries(reportId) {
+    // Ajouter un loader
+    let content = document.getElementById('reportContent');
+    const loaderHtml = `
+        <div id="entries-section" class="entries-section">
+            <h3>Détail des entrées</h3>
+            <div class="loader">
+                <div class="spinner"></div>
+                <p>Chargement des entrées...</p>
+            </div>
+        </div>
+    `;
+    content.innerHTML += loaderHtml;
+    
+    fetch(`/api/report/${reportId}/entries`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                allEntries = data.entries || [];
+                displayEntries('all');
+            } else {
+                document.getElementById('entries-section').innerHTML = 
+                    '<p class="error">Erreur lors du chargement des entrées</p>';
+            }
+        })
+        .catch(err => {
+            console.error('Erreur chargement entrées:', err);
+            document.getElementById('entries-section').innerHTML = 
+                '<p class="error">Erreur: ' + err.message + '</p>';
+        });
+}
+
+function displayEntries(filter) {
+    currentFilter = filter;
+    
+    let filteredEntries = allEntries;
+    
+    if (filter === 'sent') {
+        filteredEntries = allEntries.filter(e => e.mode === 'SF');
+    } else if (filter === 'received') {
+        filteredEntries = allEntries.filter(e => e.mode === 'RF');
+    } else if (filter === 'errors') {
+        filteredEntries = allEntries.filter(e => !e.valide);
+    }
+    
+    const filterButtons = `
+        <div class="filter-buttons">
+            <button class="btn ${filter === 'all' ? 'active' : ''}" onclick="displayEntries('all')">
+                📋 Tous (${allEntries.length})
+            </button>
+            <button class="btn ${filter === 'sent' ? 'active' : ''}" onclick="displayEntries('sent')">
+                📤 Envoyés (${allEntries.filter(e => e.mode === 'SF').length})
+            </button>
+            <button class="btn ${filter === 'received' ? 'active' : ''}" onclick="displayEntries('received')">
+                📥 Reçus (${allEntries.filter(e => e.mode === 'RF').length})
+            </button>
+            <button class="btn ${filter === 'errors' ? 'active' : ''}" onclick="displayEntries('errors')">
+                ⚠️ Erreurs (${allEntries.filter(e => !e.valide).length})
+            </button>
+        </div>
+    `;
+    
+    let entriesHtml = `
+        <h3>Détail des entrées - ${filteredEntries.length} ligne(s)</h3>
+        ${filterButtons}
+        <div class="entries-list">
+    `;
+    
+    if (filteredEntries.length === 0) {
+        entriesHtml += '<p class="text-muted">Aucune entrée à afficher</p>';
+    } else {
+        entriesHtml += '<table class="entries-table"><thead><tr>' +
+            '<th>FAX ID</th>' +
+            '<th>Utilisateur</th>' +
+            '<th>Mode</th>' +
+            '<th>Date/Heure</th>' +
+            '<th>Numéro</th>' +
+            '<th>Pages</th>' +
+            '<th>Statut</th>' +
+            '</tr></thead><tbody>';
+        
+        filteredEntries.forEach(entry => {
+            const statusClass = entry.valide ? 'success' : 'error';
+            const statusText = entry.valide ? '✓ OK' : '✗ Erreur';
+            const errorsText = entry.erreurs ? entry.erreurs.join('<br>') : '';
+            
+            entriesHtml += `
+                <tr class="${statusClass}">
+                    <td>${entry.fax_id || '-'}</td>
+                    <td>${entry.utilisateur || '-'}</td>
+                    <td>${entry.mode || '-'}</td>
+                    <td>${entry.date_heure ? new Date(entry.date_heure).toLocaleString('fr-FR') : '-'}</td>
+                    <td>${entry.numero_normalise || entry.numero || '-'}</td>
+                    <td>${entry.pages || 0}</td>
+                    <td>
+                        <span class="status ${statusClass}">${statusText}</span>
+                        ${errorsText ? `<div class="error-details">${errorsText}</div>` : ''}
+                    </td>
+                </tr>
+            `;
+        });
+        
+        entriesHtml += '</tbody></table>';
+    }
+    
+    entriesHtml += '</div>';
+    
+    // Remplacer le contenu de la section entries
+    let entriesSection = document.getElementById('entries-section');
+    if (entriesSection) {
+        entriesSection.innerHTML = entriesHtml;
+    }
 }
 
 document.addEventListener('DOMContentLoaded', loadReport);
