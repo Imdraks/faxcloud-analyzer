@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 from .config import Config
+from .db import Database
 
 logger = logging.getLogger(__name__)
 

@@ -56,6 +56,20 @@ def report_detail(report_id):
     """Page de détail d'un rapport"""
     return render_template('report.html', report_id=report_id)
 
+@app.route('/qrcode/<report_id>')
+def get_qrcode(report_id):
+    """Retourne le QR code d'un rapport"""
+    from flask import send_file
+    try:
+        qr_path = Config.REPORTS_QR_DIR / f"{report_id}.png"
+        if qr_path.exists():
+            return send_file(str(qr_path), mimetype='image/png')
+        else:
+            return jsonify({'error': 'QR code not found'}), 404
+    except Exception as e:
+        logger.error(f"Erreur chargement QR code: {e}")
+        return jsonify({'error': str(e)}), 500
+
 # ═══════════════════════════════════════════════════════════════════════════
 # API - GESTION FICHIERS (ENDPOINT PRINCIPAL)
 # ═══════════════════════════════════════════════════════════════════════════

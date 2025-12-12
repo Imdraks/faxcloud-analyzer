@@ -29,12 +29,22 @@ function displayReport(data) {
     
     const html = `
         <div class="section">
-            <h2>Rapport #${(report.rapport_id || report.report_id || 'N/A').substring(0, 8)}</h2>
-            
-            <div class="report-details">
-                <p><strong>Contrat:</strong> ${report.contract_id}</p>
-                <p><strong>Période:</strong> ${report.date_debut} à ${report.date_fin}</p>
-                <p><strong>Date de génération:</strong> ${new Date(report.timestamp).toLocaleDateString('fr-FR')}</p>
+            <div class="report-header">
+                <div class="report-info">
+                    <h2>Rapport #${(report.rapport_id || report.report_id || 'N/A').substring(0, 8)}</h2>
+                    
+                    <div class="report-details">
+                        <p><strong>Contrat:</strong> ${report.contract_id}</p>
+                        <p><strong>Période:</strong> ${report.date_debut} à ${report.date_fin}</p>
+                        <p><strong>Date de génération:</strong> ${new Date(report.timestamp).toLocaleDateString('fr-FR')}</p>
+                    </div>
+                </div>
+                ${report.qr_path ? `
+                <div class="report-qrcode">
+                    <img src="/qrcode/${report.rapport_id}" alt="QR Code" title="Scannez ce code QR pour accéder au rapport">
+                    <small>Scanner pour accéder</small>
+                </div>
+                ` : ''}
             </div>
             
             <div class="stats-grid">

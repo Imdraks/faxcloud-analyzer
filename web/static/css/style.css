@@ -115,6 +115,55 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
+/* REPORT LAYOUT */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.report-info {
+    flex: 1;
+}
+
+.report-info h2 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+.report-qrcode {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg);
+    padding: 1rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+.report-qrcode img {
+    width: 150px;
+    height: 150px;
+    border: 2px solid var(--primary);
+    border-radius: 4px;
+    padding: 0.5rem;
+    background: white;
+}
+
+.report-qrcode small {
+    text-align: center;
+    color: var(--text-light);
+    font-size: 0.75rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
 /* DRAG DROP ZONE */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 

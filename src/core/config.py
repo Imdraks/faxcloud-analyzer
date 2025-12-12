@@ -7,6 +7,10 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement du fichier .env
+load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CHEMINS ET RÉPERTOIRES

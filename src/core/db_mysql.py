@@ -48,6 +48,11 @@ class DatabaseMySQL:
             logger.error(f"Erreur connexion MySQL: {e}")
             raise
     
+    def initialize(self):
+        """Initialise la base de données (alias pour compatibilité)"""
+        self.init_connection()
+        logger.info("Base de données MySQL initialisée avec succès")
+    
     def get_connection(self):
         """Retourne une connexion MySQL"""
         return mysql.connector.connect(
