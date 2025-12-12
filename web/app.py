@@ -285,6 +285,32 @@ def api_get_report_errors(report_id):
             'error': str(e)
         }), 500
 
+@app.route('/api/analysis_history', methods=['GET'])
+def api_get_analysis_history():
+    """API: Récupérer l'historique des analyses"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 10, type=int)
+        offset = (page - 1) * limit
+        
+        analyses = db.get_analysis_history(limit=limit, offset=offset)
+        
+        return jsonify({
+            'success': True,
+            'analyses': analyses,
+            'pagination': {
+                'page': page,
+                'limit': limit
+            }
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Erreur API analysis_history: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # ═══════════════════════════════════════════════════════════════════════════
 # GESTION DES ERREURS
 # ═══════════════════════════════════════════════════════════════════════════

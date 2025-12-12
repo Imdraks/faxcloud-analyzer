@@ -150,9 +150,56 @@ function displayReports(reports, stats) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// LOAD ANALYSES
+// ═══════════════════════════════════════════════════════════════════════════
+
+function loadAnalyses() {
+    fetch('/api/analysis_history?limit=10&page=1')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayAnalyses(data.analyses);
+            } else {
+                console.error('Erreur chargement analyses:', data.error);
+                document.getElementById('analysisList').innerHTML = '<p class="error">Erreur lors du chargement des analyses</p>';
+            }
+        })
+        .catch(err => {
+            console.error('Erreur chargement analyses:', err);
+            document.getElementById('analysisList').innerHTML = '<p class="error">Erreur réseau lors du chargement des analyses</p>';
+        });
+}
+
+function displayAnalyses(analyses) {
+    const analysisList = document.getElementById('analysisList');
+    
+    if (!analyses || analyses.length === 0) {
+        analysisList.innerHTML = '<p class="text-muted">Aucune analyse disponible</p>';
+        return;
+    }
+    
+    const html = analyses.map(analysis => `
+        <div class="analysis-item">
+            <h3>📁 ${analysis.fichier_source || 'Sans nom'}</h3>
+            <p><strong>Date:</strong> ${new Date(analysis.date_analyse).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+            <div class="analysis-stats-simple">
+                <div><strong>Total FAX:</strong> ${analysis.total_fax || 0}</div>
+                <div><strong>Envoyés:</strong> ${analysis.fax_envoyes || 0}</div>
+                <div><strong>Reçus:</strong> ${analysis.fax_recus || 0}</div>
+                <div><strong>Erreurs:</strong> ${analysis.erreurs || 0}</div>
+                <div><strong>Taux réussite:</strong> ${(analysis.taux_reussite || 0).toFixed(1)}%</div>
+            </div>
+            ${analysis.report_id ? `<a href="/report/${analysis.report_id}" class="btn btn-small">Voir le rapport</a>` : ''}
+        </div>
+    `).join('');
+    
+    analysisList.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadReports();
+    loadAnalyses();
 });

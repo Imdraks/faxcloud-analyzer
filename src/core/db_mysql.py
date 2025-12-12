@@ -6,6 +6,7 @@ Utilise mysql-connector-python pour se connecter à WampServer/phpMyAdmin
 import mysql.connector
 import json
 import logging
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 from uuid import uuid4
 
@@ -211,6 +212,77 @@ class DatabaseMySQL:
         finally:
             cursor.close()
             conn.close()
+    
+    # ═════════════════════════════════════════════════════════════════════
+    # GESTION DE L'HISTORIQUE D'ANALYSE
+    # ═════════════════════════════════════════════════════════════════════
+    
+    def save_analysis(self, analysis_data: Dict[str, Any]) -> str:
+        """Sauvegarde une analyse dans l'historique"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            analysis_id = str(uuid4())
+            report_id = analysis_data.get('rapport_id', '')
+            fichier_source = analysis_data.get('fichier_source', '')
+            
+            cursor.execute("""
+                INSERT INTO analysis_history (
+                    id, report_id, fichier_source, date_analyse, 
+                    statut, message
+                ) VALUES (%s, %s, %s, NOW(), %s, %s)
+            """, (
+                analysis_id,
+                report_id,
+                fichier_source,
+                'completed',
+                f"Analyse: {analysis_data.get('statistics', {}).get('total_fax', 0)} FAX analysés"
+            ))
+            
+            conn.commit()
+            logger.info(f"Analyse {analysis_id} sauvegardée en MySQL")
+            return analysis_id
+        
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL save_analysis: {e}")
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+    
+    def get_analysis_history(self, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
+        """Récupère l'historique des analyses"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT id, report_id, fichier_source, date_analyse, 
+                       statut, message
+                FROM analysis_history
+                ORDER BY date_analyse DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+            
+            columns = [desc[0] for desc in cursor.description]
+            analyses = []
+            
+            for row in cursor.fetchall():
+                analysis = dict(zip(columns, row))
+                # Renommer pour compatibilité avec le frontend
+                if 'date_analyse' in analysis:
+                    analysis['analysis_date'] = analysis['date_analyse']
+                analyses.append(analysis)
+            
+            cursor.close()
+            conn.close()
+            return analyses
+        
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL get_analysis_history: {e}")
+            raise
     
     def get_fax_entries(self, report_id: str, only_errors: bool = False) -> List[Dict[str, Any]]:
         """Récupère les entrées FAX d'un rapport"""

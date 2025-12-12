@@ -115,6 +115,13 @@ class ReportGenerator:
             if self.db:
                 self.db.save_report(report_data)
                 logger.info(f"Rapport {report_id} sauvegardé en BDD")
+                
+                # Sauvegarder aussi dans l'historique des analyses
+                try:
+                    self.db.save_analysis(report_data)
+                    logger.info(f"Analyse {report_id} sauvegardée en historique")
+                except Exception as e:
+                    logger.warning(f"Erreur lors de la sauvegarde de l'analyse en historique: {e}")
             
             logger.info(f"Rapport complet généré: {report_id}")
             
