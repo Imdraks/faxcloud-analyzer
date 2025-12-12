@@ -19,6 +19,7 @@ from core.db import Database
 from core.reporter import ReportGenerator
 from core.importer import FileImporter
 from core.analyzer import FaxAnalyzer
+from core.ngrok_helper import NgrokHelper
 
 # Configuration du logging
 Config.setup_logging()
@@ -312,6 +313,78 @@ def api_get_analysis_history():
         }), 500
 
 # ═══════════════════════════════════════════════════════════════════════════
+# API - PARTAGE DE RAPPORTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/report/<report_id>/share', methods=['POST'])
+def api_create_share_link(report_id):
+    """API: Créer un lien de partage pour un rapport"""
+    try:
+        days = request.json.get('days', 7) if request.json else 7
+        utilisateur = request.json.get('utilisateur') if request.json else None
+        
+        token = db.create_share_token(report_id, days=days, utilisateur=utilisateur)
+        
+        share_url = f"{request.host_url.rstrip('/')}/share/{token}"
+        
+        return jsonify({
+            'success': True,
+            'token': token,
+            'share_url': share_url,
+            'expires_in_days': days,
+            'message': 'Lien de partage créé avec succès'
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Erreur API create_share_link: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/share/<token>')
+def share_report(token):
+    """Page publique pour accéder à un rapport partagé"""
+    try:
+        report_data = db.get_report_by_share_token(token)
+        
+        if not report_data:
+            return render_template('404.html'), 404
+        
+        return render_template('report.html', report_id=report_data['rapport_id'])
+    
+    except Exception as e:
+        logger.error(f"Erreur share_report: {str(e)}", exc_info=True)
+        return render_template('500.html'), 500
+
+@app.route('/api/share/<token>/report', methods=['GET'])
+def api_get_shared_report(token):
+    """API: Récupérer un rapport partagé"""
+    try:
+        report_data = db.get_report_by_share_token(token)
+        
+        if not report_data:
+            return jsonify({
+                'success': False,
+                'error': 'Lien expiré ou invalide'
+            }), 403
+        
+        entries = db.get_fax_entries(report_data['rapport_id'])
+        
+        return jsonify({
+            'success': True,
+            'report': report_data,
+            'entries': entries
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Erreur API get_shared_report: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 403
+
+# ═══════════════════════════════════════════════════════════════════════════
 # GESTION DES ERREURS
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -339,13 +412,48 @@ if __name__ == '__main__':
         # Démarrer l'app
         host = Config.FLASK_CONFIG.get('HOST', '127.0.0.1')
         port = Config.FLASK_CONFIG.get('PORT', 5000)
+        
+        # Vérifier si on veut ngrok (env var ou en local)
+        use_ngrok = os.environ.get('USE_NGROK', 'true').lower() == 'true'
+        
         logger.info(f"Demarrage du serveur: http://{host}:{port}")
         
-        app.run(
-            host=host,
-            port=port,
-            debug=Config.FLASK_CONFIG.get('DEBUG', False)
-        )
+        # Lancer le serveur dans un thread pour pouvoir démarrer ngrok
+        import threading
+        from time import sleep
+        
+        def start_server():
+            app.run(
+                host=host,
+                port=port,
+                debug=Config.FLASK_CONFIG.get('DEBUG', False),
+                use_reloader=False
+            )
+        
+        server_thread = threading.Thread(target=start_server, daemon=True)
+        server_thread.start()
+        
+        # Attendre que le serveur démarre
+        sleep(2)
+        
+        # Démarrer ngrok
+        if use_ngrok:
+            public_url = NgrokHelper.start_tunnel(port)
+            if public_url:
+                logger.info("")
+                logger.info("╔═══════════════════════════════════════════════════╗")
+                logger.info("║        🌐 SERVEUR ACCESSIBLE PUBLIQUEMENT 🌐       ║")
+                logger.info("╚═══════════════════════════════════════════════════╝")
+                logger.info(f"📱 URL publique: {public_url}")
+                logger.info(f"📱 URL publique: {public_url}")
+                logger.info("")
+                logger.info("Partage ce lien avec tes clients pour qu'ils accèdent aux rapports!")
+                logger.info("")
+        else:
+            logger.info("ngrok désactivé (USE_NGROK=false)")
+        
+        # Garder le serveur actif
+        server_thread.join()
     
     except Exception as e:
         logger.error(f"Erreur lors du demarrage: {str(e)}", exc_info=True)

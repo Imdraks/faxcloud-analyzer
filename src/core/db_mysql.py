@@ -52,7 +52,71 @@ class DatabaseMySQL:
     def initialize(self):
         """Initialise la base de données (alias pour compatibilité)"""
         self.init_connection()
+        self._migrate_analysis_table()
         logger.info("Base de données MySQL initialisée avec succès")
+    
+    def _migrate_analysis_table(self):
+        """Crée ou migre la table analysis_history avec la bonne structure"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Vérifier si la table existe
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.TABLES 
+                WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'analysis_history'
+            """, (self.config['database'],))
+            
+            table_exists = cursor.fetchone()[0] > 0
+            
+            if table_exists:
+                # Vérifier si la colonne analysis_name existe
+                cursor.execute("""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'analysis_history' 
+                    AND COLUMN_NAME = 'analysis_name'
+                """, (self.config['database'],))
+                
+                has_analysis_name = cursor.fetchone()[0] > 0
+                
+                if not has_analysis_name:
+                    logger.info("Ajout de colonnes à la table analysis_history...")
+                    # Recréer la table avec la bonne structure
+                    cursor.execute("DROP TABLE IF EXISTS analysis_history")
+                    self._create_analysis_table(cursor)
+                    logger.info("Table analysis_history recréée avec succès")
+            else:
+                logger.info("Création de la table analysis_history...")
+                self._create_analysis_table(cursor)
+                logger.info("Table analysis_history créée avec succès")
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Erreur lors de la migration: {e}")
+    
+    def _create_analysis_table(self, cursor):
+        """Crée la table analysis_history avec la bonne structure"""
+        cursor.execute("""
+            CREATE TABLE analysis_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                report_id VARCHAR(255) NOT NULL,
+                analysis_name VARCHAR(255) NOT NULL,
+                fichier_source VARCHAR(255),
+                date_analyse TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                total_fax INT NOT NULL DEFAULT 0,
+                fax_envoyes INT NOT NULL DEFAULT 0,
+                fax_recus INT NOT NULL DEFAULT 0,
+                erreurs_totales INT NOT NULL DEFAULT 0,
+                taux_reussite FLOAT NOT NULL DEFAULT 0.0,
+                statut VARCHAR(50) NOT NULL,
+                message TEXT,
+                FOREIGN KEY (report_id) REFERENCES reports(id),
+                INDEX idx_analysis_date (date_analyse DESC),
+                INDEX idx_analysis_report (report_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """)
     
     def get_connection(self):
         """Retourne une connexion MySQL"""
@@ -226,18 +290,31 @@ class DatabaseMySQL:
             analysis_id = str(uuid4())
             report_id = analysis_data.get('rapport_id', '')
             fichier_source = analysis_data.get('fichier_source', '')
+            stats = analysis_data.get('statistics', {})
+            
+            # Générer un nom automatique si pas fourni
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+            analysis_name = f"{fichier_source.split('/')[-1].split('.')[0]} - {timestamp}" if fichier_source else f"Analyse - {timestamp}"
             
             cursor.execute("""
                 INSERT INTO analysis_history (
-                    id, report_id, fichier_source, date_analyse, 
+                    id, report_id, analysis_name, fichier_source, date_analyse,
+                    total_fax, fax_envoyes, fax_recus, erreurs_totales, taux_reussite,
                     statut, message
-                ) VALUES (%s, %s, %s, NOW(), %s, %s)
+                ) VALUES (%s, %s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, %s)
             """, (
                 analysis_id,
                 report_id,
+                analysis_name,
                 fichier_source,
+                stats.get('total_fax', 0),
+                stats.get('fax_envoyes', 0),
+                stats.get('fax_recus', 0),
+                stats.get('erreurs_totales', 0),
+                stats.get('taux_reussite', 0),
                 'completed',
-                f"Analyse: {analysis_data.get('statistics', {}).get('total_fax', 0)} FAX analysés"
+                f"Analyse: {stats.get('total_fax', 0)} FAX analysés"
             ))
             
             conn.commit()
@@ -259,8 +336,8 @@ class DatabaseMySQL:
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT id, report_id, fichier_source, date_analyse, 
-                       statut, message
+                SELECT id, report_id, analysis_name, fichier_source, date_analyse,
+                       total_fax, fax_envoyes, fax_recus, erreurs_totales, taux_reussite
                 FROM analysis_history
                 ORDER BY date_analyse DESC
                 LIMIT %s OFFSET %s
@@ -274,6 +351,7 @@ class DatabaseMySQL:
                 # Renommer pour compatibilité avec le frontend
                 if 'date_analyse' in analysis:
                     analysis['analysis_date'] = analysis['date_analyse']
+                    analysis['fichier_source'] = analysis['analysis_name']
                 analyses.append(analysis)
             
             cursor.close()
@@ -361,3 +439,126 @@ class DatabaseMySQL:
         finally:
             cursor.close()
             conn.close()
+    
+    # ═════════════════════════════════════════════════════════════════════
+    # GESTION DES TOKENS DE PARTAGE
+    # ═════════════════════════════════════════════════════════════════════
+    
+    def create_share_token(self, report_id: str, days: int = 7, utilisateur: str = None) -> str:
+        """Crée un token de partage pour un rapport"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            import secrets
+            from datetime import timedelta
+            
+            token = secrets.token_urlsafe(32)
+            expires_at = datetime.now() + timedelta(days=days)
+            
+            cursor.execute("""
+                INSERT INTO share_tokens (token, report_id, expires_at, utilisateur)
+                VALUES (%s, %s, %s, %s)
+            """, (token, report_id, expires_at, utilisateur))
+            
+            conn.commit()
+            logger.info(f"Token de partage créé pour rapport {report_id}: {token}")
+            return token
+        
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL create_share_token: {e}")
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+    
+    def get_report_by_share_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Récupère un rapport à partir d'un token de partage"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Vérifier que le token est valide et non expiré
+            cursor.execute("""
+                SELECT report_id FROM share_tokens
+                WHERE token = %s AND expires_at > NOW()
+            """, (token,))
+            
+            result = cursor.fetchone()
+            if not result:
+                logger.warning(f"Token de partage invalide ou expiré: {token}")
+                cursor.close()
+                conn.close()
+                return None
+            
+            report_id = result[0]
+            
+            # Récupérer le rapport
+            cursor.execute("""
+                SELECT donnees_json, qr_path FROM reports WHERE id = %s
+            """, (report_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                cursor.close()
+                conn.close()
+                return None
+            
+            report_data = json.loads(row[0])
+            report_data['qr_path'] = row[1]
+            report_data['rapport_id'] = report_id
+            
+            cursor.close()
+            conn.close()
+            return report_data
+        
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL get_report_by_share_token: {e}")
+            return None
+    
+    def list_share_tokens(self, report_id: str) -> List[Dict[str, Any]]:
+        """Liste les tokens de partage actifs pour un rapport"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT token, created_at, expires_at, utilisateur
+                FROM share_tokens
+                WHERE report_id = %s AND expires_at > NOW()
+                ORDER BY created_at DESC
+            """, (report_id,))
+            
+            tokens = []
+            for row in cursor.fetchall():
+                tokens.append({
+                    'token': row[0],
+                    'created_at': str(row[1]),
+                    'expires_at': str(row[2]),
+                    'utilisateur': row[3]
+                })
+            
+            cursor.close()
+            conn.close()
+            return tokens
+        
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL list_share_tokens: {e}")
+            return []
+    
+    def delete_share_token(self, token: str) -> bool:
+        """Supprime un token de partage"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM share_tokens WHERE token = %s", (token,))
+            conn.commit()
+            
+            cursor.close()
+            conn.close()
+            return True
+        
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL delete_share_token: {e}")
+            return False

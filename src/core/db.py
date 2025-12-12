@@ -72,10 +72,27 @@ CREATE TABLE IF NOT EXISTS fax_entries (
 CREATE TABLE IF NOT EXISTS analysis_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     report_id TEXT NOT NULL,
+    analysis_name TEXT NOT NULL,
     fichier_source TEXT NOT NULL,
     date_analyse TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total_fax INTEGER NOT NULL DEFAULT 0,
+    fax_envoyes INTEGER NOT NULL DEFAULT 0,
+    fax_recus INTEGER NOT NULL DEFAULT 0,
+    erreurs_totales INTEGER NOT NULL DEFAULT 0,
+    taux_reussite REAL NOT NULL DEFAULT 0.0,
     statut TEXT NOT NULL,
     message TEXT,
+    FOREIGN KEY (report_id) REFERENCES reports(id)
+);
+
+-- Table de partage des rapports
+CREATE TABLE IF NOT EXISTS share_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT UNIQUE NOT NULL,
+    report_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    utilisateur TEXT,
     FOREIGN KEY (report_id) REFERENCES reports(id)
 );
 
@@ -85,6 +102,8 @@ CREATE INDEX IF NOT EXISTS idx_reports_contract ON reports(contract_id);
 CREATE INDEX IF NOT EXISTS idx_fax_entries_report ON fax_entries(report_id);
 CREATE INDEX IF NOT EXISTS idx_fax_entries_valide ON fax_entries(valide);
 CREATE INDEX IF NOT EXISTS idx_analysis_report ON analysis_history(report_id);
+CREATE INDEX IF NOT EXISTS idx_share_tokens_token ON share_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_share_tokens_expires ON share_tokens(expires_at);
 """
 
 # ═══════════════════════════════════════════════════════════════════════════
