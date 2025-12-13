@@ -104,8 +104,12 @@ class ReportGenerator:
             }
             
             # Générer l'URL et le QR code
+            # Le QR code pointe directement vers le PDF téléchargable
+            pdf_url = f"{Config.BASE_REPORT_URL.replace('/report', '')}/api/report/{report_id}/pdf"
+            qr_path = self.generate_qr_code(report_id, pdf_url)
+            
+            # L'URL du rapport pour la page HTML reste la même
             report_url = f"{Config.BASE_REPORT_URL}/{report_id}"
-            qr_path = self.generate_qr_code(report_id, report_url)
             
             # Mettre à jour le rapport
             report_data['qr_path'] = qr_path

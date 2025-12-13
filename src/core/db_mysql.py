@@ -407,6 +407,28 @@ class DatabaseMySQL:
             cursor.close()
             conn.close()
     
+    def get_report_data(self, report_id: str) -> Optional[str]:
+        """Récupère les données JSON complètes d'un rapport"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT donnees_json FROM reports WHERE id = %s
+            """, (report_id,))
+            
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            
+            if row:
+                return row[0]
+            return None
+        
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL get_report_data: {e}")
+            return None
+    
     def get_statistics(self) -> Dict[str, Any]:
         """Retourne les statistiques globales"""
         try:

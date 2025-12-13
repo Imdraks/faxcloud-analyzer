@@ -6,7 +6,7 @@ Interface web pour consulter les rapports et gérer les imports
 import sys
 import os
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
 import logging
 import tempfile
@@ -20,6 +20,7 @@ from core.reporter import ReportGenerator
 from core.importer import FileImporter
 from core.analyzer import FaxAnalyzer
 from core.ngrok_helper import NgrokHelper
+from core.pdf_generator import PDFReportGenerator
 
 # Configuration du logging
 Config.setup_logging()
@@ -69,6 +70,54 @@ def get_qrcode(report_id):
             return jsonify({'error': 'QR code not found'}), 404
     except Exception as e:
         logger.error(f"Erreur chargement QR code: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/report/<report_id>/pdf')
+def get_report_pdf(report_id):
+    """Génère et retourne un PDF du rapport"""
+    try:
+        # Récupérer les données du rapport
+        report_json = db.get_report_data(report_id)
+        if not report_json:
+            return jsonify({'error': 'Report not found'}), 404
+        
+        # Parser le JSON
+        import json
+        report_data = json.loads(report_json) if isinstance(report_json, str) else report_json
+        
+        # Récupérer les FAX entries
+        fax_entries = db.get_fax_entries(report_id)
+        
+        # Préparer les données pour le PDF
+        pdf_data = {
+            'id': report_id,
+            'analysis_name': report_data.get('analysis_name', 'Sans nom'),
+            'date_analyse': report_data.get('date_analyse', 'N/A'),
+            'stats': {
+                'total_fax': len(fax_entries),
+                'fax_envoyes': len([f for f in fax_entries if f.get('statut', '').lower() == 'envoyé']),
+                'fax_recus': len([f for f in fax_entries if f.get('statut', '').lower() == 'reçu']),
+                'erreurs_totales': len([f for f in fax_entries if f.get('statut', '').lower() == 'erreur']),
+                'taux_reussite': report_data.get('taux_reussite', 0)
+            },
+            'fax_data': fax_entries
+        }
+        
+        # Générer le PDF
+        pdf_buffer = PDFReportGenerator.generate_pdf(pdf_data)
+        
+        if not pdf_buffer:
+            return jsonify({'error': 'Failed to generate PDF'}), 500
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'rapport_{report_id}.pdf'
+        )
+    
+    except Exception as e:
+        logger.error(f"Erreur génération PDF: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 # ═══════════════════════════════════════════════════════════════════════════
