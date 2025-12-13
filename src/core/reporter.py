@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, List
 
 from .config import Config
 from .db import Database
+from .ngrok_helper import NgrokHelper
 
 logger = logging.getLogger(__name__)
 
@@ -104,15 +105,14 @@ class ReportGenerator:
             }
             
             # Générer l'URL et le QR code
-            # Le QR code pointe directement vers le PDF téléchargable
-            pdf_url = f"{Config.BASE_REPORT_URL.replace('/report', '')}/api/report/{report_id}/pdf"
-            qr_path = self.generate_qr_code(report_id, pdf_url)
+            # Le QR code sera généré dynamiquement par l'endpoint /qrcode/<report_id>
+            # Cela permet d'utiliser l'URL ngrok actuelle au moment où on l'accède
             
-            # L'URL du rapport pour la page HTML reste la même
+            # L'URL du rapport pour la page HTML
             report_url = f"{Config.BASE_REPORT_URL}/{report_id}"
             
-            # Mettre à jour le rapport
-            report_data['qr_path'] = qr_path
+            # Mettre à jour le rapport (QR code sera généré à la demande)
+            report_data['qr_path'] = None  # Pas encore généré
             report_data['report_url'] = report_url
             
             # Sauvegarder dans la DB (principal)
@@ -133,7 +133,7 @@ class ReportGenerator:
                 'success': True,
                 'rapport_id': report_id,
                 'report_url': report_url,
-                'qr_path': qr_path,
+                'qr_path': None,  # QR code généré dynamiquement
                 'message': f"Rapport {report_id} généré avec succès"
             }
         

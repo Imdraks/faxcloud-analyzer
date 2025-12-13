@@ -6,6 +6,7 @@ Interface web pour consulter les rapports et gérer les imports
 import sys
 import os
 from pathlib import Path
+from datetime import datetime
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
 import logging
@@ -60,16 +61,46 @@ def report_detail(report_id):
 
 @app.route('/qrcode/<report_id>')
 def get_qrcode(report_id):
-    """Retourne le QR code d'un rapport"""
-    from flask import send_file
+    """Génère et retourne le QR code d'un rapport avec l'URL ngrok si disponible"""
+    from io import BytesIO
+    import qrcode
+    
     try:
-        qr_path = Config.REPORTS_QR_DIR / f"{report_id}.png"
-        if qr_path.exists():
-            return send_file(str(qr_path), mimetype='image/png')
-        else:
-            return jsonify({'error': 'QR code not found'}), 404
+        # Récupérer l'URL publique si ngrok est disponible
+        ngrok_url = NgrokHelper.get_public_url()
+        base_url = ngrok_url if ngrok_url else f"http://{request.host}"
+        
+        # L'URL du PDF mène directement à l'endpoint de téléchargement
+        pdf_url = f"{base_url}/api/report/{report_id}/pdf"
+        
+        logger.info(f"Génération QR code pour {report_id}: {pdf_url}")
+        
+        # Générer le QR code en mémoire
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(pdf_url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Retourner l'image en mémoire
+        img_io = BytesIO()
+        img.save(img_io, 'PNG')
+        img_io.seek(0)
+        
+        return send_file(
+            img_io,
+            mimetype='image/png',
+            as_attachment=False,
+            download_name=f'qrcode_{report_id}.png'
+        )
+    
     except Exception as e:
-        logger.error(f"Erreur chargement QR code: {e}")
+        logger.error(f"Erreur génération QR code: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/report/<report_id>/pdf')
@@ -118,6 +149,28 @@ def get_report_pdf(report_id):
     
     except Exception as e:
         logger.error(f"Erreur génération PDF: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+# ═══════════════════════════════════════════════════════════════════════════
+# API - CONFIGURATION ET STATUS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/config')
+def api_config():
+    """Retourne la configuration et le status du serveur"""
+    try:
+        ngrok_url = NgrokHelper.get_public_url()
+        
+        return jsonify({
+            'success': True,
+            'localhost_url': 'http://127.0.0.1:5000',
+            'ngrok_url': ngrok_url,
+            'public_url': ngrok_url if ngrok_url else 'http://127.0.0.1:5000',
+            'ngrok_enabled': ngrok_url is not None,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Erreur config: {e}")
         return jsonify({'error': str(e)}), 500
 
 # ═══════════════════════════════════════════════════════════════════════════
