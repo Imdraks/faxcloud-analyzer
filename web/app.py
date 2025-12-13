@@ -418,42 +418,30 @@ if __name__ == '__main__':
         
         logger.info(f"Demarrage du serveur: http://{host}:{port}")
         
-        # Lancer le serveur dans un thread pour pouvoir démarrer ngrok
-        import threading
-        from time import sleep
-        
-        def start_server():
-            app.run(
-                host=host,
-                port=port,
-                debug=Config.FLASK_CONFIG.get('DEBUG', False),
-                use_reloader=False
-            )
-        
-        server_thread = threading.Thread(target=start_server, daemon=True)
-        server_thread.start()
-        
-        # Attendre que le serveur démarre
-        sleep(2)
-        
-        # Démarrer ngrok
+        # Si ngrok est activé, le démarrer dans un thread
         if use_ngrok:
-            public_url = NgrokHelper.start_tunnel(port)
-            if public_url:
-                logger.info("")
-                logger.info("╔═══════════════════════════════════════════════════╗")
-                logger.info("║        🌐 SERVEUR ACCESSIBLE PUBLIQUEMENT 🌐       ║")
-                logger.info("╚═══════════════════════════════════════════════════╝")
-                logger.info(f"📱 URL publique: {public_url}")
-                logger.info(f"📱 URL publique: {public_url}")
-                logger.info("")
-                logger.info("Partage ce lien avec tes clients pour qu'ils accèdent aux rapports!")
-                logger.info("")
+            try:
+                import threading
+                from time import sleep
+                
+                def start_ngrok():
+                    sleep(3)  # Attendre que Flask démarre
+                    NgrokHelper.start_tunnel_subprocess(port)
+                
+                ngrok_thread = threading.Thread(target=start_ngrok, daemon=True)
+                ngrok_thread.start()
+                logger.info("Démarrage de ngrok en arrière-plan...")
+            except Exception as e:
+                logger.warning(f"Erreur ngrok: {e}")
         else:
             logger.info("ngrok désactivé (USE_NGROK=false)")
         
-        # Garder le serveur actif
-        server_thread.join()
+        app.run(
+            host=host,
+            port=port,
+            debug=Config.FLASK_CONFIG.get('DEBUG', False),
+            use_reloader=False
+        )
     
     except Exception as e:
         logger.error(f"Erreur lors du demarrage: {str(e)}", exc_info=True)
