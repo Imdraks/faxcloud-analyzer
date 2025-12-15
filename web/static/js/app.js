@@ -2,204 +2,188 @@
 /* FAXCLOUD ANALYZER - MAIN APPLICATION */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
-// Elements
-const dragDropZone = document.getElementById('dragDropZone');
-const fileInput = document.getElementById('fileInput');
-const uploadProgress = document.getElementById('uploadProgress');
-const resultSection = document.getElementById('resultSection');
-const errorSection = document.getElementById('errorSection');
-const reportsList = document.getElementById('reportsList');
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DRAG & DROP HANDLERS
-// ═══════════════════════════════════════════════════════════════════════════
-
-dragDropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dragDropZone.classList.add('dragover');
-});
-
-dragDropZone.addEventListener('dragleave', () => {
-    dragDropZone.classList.remove('dragover');
-});
-
-dragDropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dragDropZone.classList.remove('dragover');
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-        uploadFile(files[0]);
+class FaxApp {
+    constructor() {
+        this.currentFilter = 'all';
+        this.init();
     }
-});
 
-fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-        uploadFile(e.target.files[0]);
+    init() {
+        this.setupEventListeners();
+        this.loadStats();
+        this.loadEntries();
     }
-});
 
-// ═══════════════════════════════════════════════════════════════════════════
-// FILE UPLOAD
-// ═══════════════════════════════════════════════════════════════════════════
+    setupEventListeners() {
+        // File input
+        const fileInput = document.getElementById('fileInput');
+        const dragDropZone = document.getElementById('dragDropZone');
 
-function uploadFile(file) {
-    // Validate file type
-    const validTypes = ['.csv', '.xlsx', '.xls'];
-    const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    
-    if (!validTypes.includes(fileExt)) {
-        showError('Format de fichier non supporté. Acceptés: CSV, XLSX');
-        return;
-    }
-    
-    // Show progress
-    uploadProgress.classList.remove('hidden');
-    resultSection.classList.add('hidden');
-    errorSection.classList.add('hidden');
-    
-    // Upload file
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    fetch('/api/import', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        uploadProgress.classList.add('hidden');
-        
-        if (data.success) {
-            showResult(data);
-            loadReports();
-        } else {
-            showError(data.error || 'Erreur lors de l\'import');
-        }
-    })
-    .catch(err => {
-        uploadProgress.classList.add('hidden');
-        showError('Erreur réseau: ' + err.message);
-    });
-}
+        fileInput.addEventListener('change', (e) => this.handleFileSelect(e.target.files[0]));
 
-// ═══════════════════════════════════════════════════════════════════════════
-// DISPLAY RESULTS
-// ═══════════════════════════════════════════════════════════════════════════
+        // Drag and drop
+        dragDropZone.addEventListener('dragover', (e) => this.handleDragOver(e));
+        dragDropZone.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+        dragDropZone.addEventListener('drop', (e) => this.handleDrop(e));
 
-function showResult(data) {
-    const stats = data.stats || {};
-    
-    document.getElementById('totalFax').textContent = stats.total_fax || 0;
-    document.getElementById('faxEnvoyes').textContent = stats.fax_envoyes || 0;
-    document.getElementById('faxRecus').textContent = stats.fax_recus || 0;
-    document.getElementById('errorsCount').textContent = stats.erreurs_totales || 0;
-    document.getElementById('successRate').textContent = (stats.taux_reussite || 0).toFixed(1) + '%';
-    document.getElementById('totalPages').textContent = stats.pages_totales || 0;
-    
-    document.getElementById('reportLink').href = data.report_url;
-    
-    resultSection.classList.remove('hidden');
-}
-
-function showError(message) {
-    document.getElementById('errorText').textContent = message;
-    errorSection.classList.remove('hidden');
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LOAD REPORTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function loadReports() {
-    fetch('/api/reports?limit=5')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                displayReports(data.reports, data.stats);
-            }
-        })
-        .catch(err => console.error('Erreur chargement rapports:', err));
-}
-
-function displayReports(reports, stats) {
-    if (!reports || reports.length === 0) {
-        reportsList.innerHTML = '<p class="text-muted">Aucun rapport disponible</p>';
-        return;
-    }
-    
-    const html = reports.map(report => `
-        <div class="report-item">
-            <h3>${report.contract_id || 'N/A'}</h3>
-            <p><strong>ID:</strong> ${report.id}</p>
-            <p><strong>Date:</strong> ${new Date(report.timestamp).toLocaleDateString('fr-FR')}</p>
-            <p><strong>Total FAX:</strong> ${report.total_fax || 0}</p>
-            <p><strong>Taux réussite:</strong> ${(report.taux_reussite || 0).toFixed(1)}%</p>
-            <a href="/report/${report.id}" class="btn">Voir le rapport</a>
-        </div>
-    `).join('');
-    
-    reportsList.innerHTML = html;
-    
-    // Update global stats
-    if (stats) {
-        document.getElementById('globReports').textContent = stats.total_reports || 0;
-        document.getElementById('globTotalFax').textContent = stats.total_fax || 0;
-        document.getElementById('globAvgRate').textContent = (stats.avg_success_rate || 0).toFixed(1) + '%';
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LOAD ANALYSES
-// ═══════════════════════════════════════════════════════════════════════════
-
-function loadAnalyses() {
-    fetch('/api/analysis_history?limit=10&page=1')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                displayAnalyses(data.analyses);
-            } else {
-                console.error('Erreur chargement analyses:', data.error);
-                document.getElementById('analysisList').innerHTML = '<p class="error">Erreur lors du chargement des analyses</p>';
-            }
-        })
-        .catch(err => {
-            console.error('Erreur chargement analyses:', err);
-            document.getElementById('analysisList').innerHTML = '<p class="error">Erreur réseau lors du chargement des analyses</p>';
+        // Filter buttons
+        document.querySelectorAll('.filter-buttons .btn').forEach(btn => {
+            btn.addEventListener('click', () => this.setFilter(btn.dataset.filter, btn));
         });
-}
 
-function displayAnalyses(analyses) {
-    const analysisList = document.getElementById('analysisList');
-    
-    if (!analyses || analyses.length === 0) {
-        analysisList.innerHTML = '<p class="text-muted">Aucune analyse disponible</p>';
-        return;
+        // Clear button
+        document.getElementById('clearBtn').addEventListener('click', () => this.clearData());
     }
-    
-    const html = analyses.map(analysis => `
-        <div class="analysis-item">
-            <h3>📁 ${analysis.fichier_source || 'Sans nom'}</h3>
-            <p><strong>Date:</strong> ${new Date(analysis.date_analyse).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-            <div class="analysis-stats-simple">
-                <div><strong>Total FAX:</strong> ${analysis.total_fax || 0}</div>
-                <div><strong>Envoyés:</strong> ${analysis.fax_envoyes || 0}</div>
-                <div><strong>Reçus:</strong> ${analysis.fax_recus || 0}</div>
-                <div><strong>Erreurs:</strong> ${analysis.erreurs || 0}</div>
-                <div><strong>Taux réussite:</strong> ${(analysis.taux_reussite || 0).toFixed(1)}%</div>
-            </div>
-            ${analysis.report_id ? `<a href="/report/${analysis.report_id}" class="btn btn-small">Voir le rapport</a>` : ''}
-        </div>
-    `).join('');
-    
-    analysisList.innerHTML = html;
+
+    handleFileSelect(file) {
+        if (!file) return;
+        this.uploadFile(file);
+    }
+
+    handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('dragDropZone').classList.add('drag-over');
+    }
+
+    handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('dragDropZone').classList.remove('drag-over');
+    }
+
+    handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('dragDropZone').classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            this.uploadFile(files[0]);
+        }
+    }
+
+    async uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            // Afficher la barre de progression
+            const progressDiv = document.getElementById('uploadProgress');
+            progressDiv.classList.remove('hidden');
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showMessage('success', `✓ ${data.message}`);
+                this.loadStats();
+                this.loadEntries();
+            } else {
+                this.showMessage('error', `✗ Erreur: ${data.error}`);
+            }
+        } catch (error) {
+            this.showMessage('error', `✗ Erreur upload: ${error.message}`);
+        } finally {
+            document.getElementById('uploadProgress').classList.add('hidden');
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = '0%';
+        }
+    }
+
+    async loadStats() {
+        try {
+            const response = await fetch('/api/stats');
+            const stats = await response.json();
+
+            document.getElementById('totalFax').textContent = stats.total || 0;
+            document.getElementById('sentFax').textContent = stats.sent || 0;
+            document.getElementById('receivedFax').textContent = stats.received || 0;
+            document.getElementById('errorFax').textContent = stats.errors || 0;
+        } catch (error) {
+            console.error('Erreur stats:', error);
+        }
+    }
+
+    async loadEntries() {
+        try {
+            const response = await fetch(`/api/entries?filter=${this.currentFilter}&limit=10`);
+            const data = await response.json();
+
+            const tbody = document.getElementById('entriesBody');
+            tbody.innerHTML = '';
+
+            if (data.entries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Aucun enregistrement</td></tr>';
+                return;
+            }
+
+            data.entries.forEach(entry => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(entry.date).toLocaleDateString('fr-FR')}</td>
+                    <td>${entry.number || '-'}</td>
+                    <td>${entry.type || '-'}</td>
+                    <td>${entry.duration || '-'}</td>
+                    <td>
+                        <span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; 
+                        background: ${entry.status === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; 
+                        color: ${entry.status === 'error' ? '#fca5a5' : '#86efac'};">
+                            ${entry.status || '-'}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        } catch (error) {
+            console.error('Erreur entries:', error);
+        }
+    }
+
+    setFilter(filter, btn) {
+        this.currentFilter = filter;
+        
+        // Mettre à jour les boutons
+        document.querySelectorAll('.filter-buttons .btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Recharger les entrées
+        this.loadEntries();
+    }
+
+    async clearData() {
+        if (!confirm('⚠️ Êtes-vous sûr? Toutes les données seront effacées de manière permanente.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/clear', { method: 'POST' });
+            const data = await response.json();
+
+            if (data.success) {
+                this.showMessage('success', '✓ Données effacées');
+                this.loadStats();
+                this.loadEntries();
+            }
+        } catch (error) {
+            this.showMessage('error', `✗ Erreur: ${error.message}`);
+        }
+    }
+
+    showMessage(type, message) {
+        const msgDiv = document.getElementById('uploadMessage');
+        msgDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        setTimeout(() => {
+            msgDiv.innerHTML = '';
+        }, 5000);
+    }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════════════════════
-
+// Initialiser l'app au chargement
 document.addEventListener('DOMContentLoaded', () => {
-    loadAnalyses();
+    new FaxApp();
 });

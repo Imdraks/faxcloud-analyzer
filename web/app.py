@@ -1,550 +1,264 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Application Flask pour FaxCloud Analyzer
-Interface web pour consulter les rapports et gérer les imports
+FaxCloud Analyzer - Web Application
+Backend moderne avec Flask
 """
 
 import sys
-import os
+import json
+import io
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request, send_file
-from flask_cors import CORS
-import logging
-import tempfile
+
+from flask import Flask, render_template, request, jsonify, send_file
+from werkzeug.utils import secure_filename
 
 # Ajouter src au chemin Python
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from core.config import Config
-from core.db import Database
-from core.reporter import ReportGenerator
 from core.importer import FileImporter
 from core.analyzer import FaxAnalyzer
+from core.reporter import ReportGenerator
+from core.db_mysql import DatabaseMySQL
 from core.ngrok_helper import NgrokHelper
-from core.pdf_generator import PDFReportGenerator
 
-# Configuration du logging
+# ═══════════════════════════════════════════════════════════════════════════
+# CONFIGURATION FLASK
+# ═══════════════════════════════════════════════════════════════════════════
+
+app = Flask(__name__, 
+    template_folder='templates',
+    static_folder='static',
+    static_url_path='/static')
+
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
+app.config['UPLOAD_FOLDER'] = Config.IMPORTS_DIR
+
+# Setup logging
+Config.ensure_directories()
 Config.setup_logging()
 logger = Config.get_logger(__name__)
 
-# Créer l'app Flask
-app = Flask(__name__, template_folder='templates', static_folder='static')
-app.config.update(Config.FLASK_CONFIG)
-
-# CORS
-CORS(app)
-
-# Initialiser les modules
-db = Database()
-reporter = ReportGenerator(db=db)
-importer = FileImporter()
-analyzer = FaxAnalyzer()
+# Initialiser la base de données
+try:
+    db = DatabaseMySQL()
+    db.initialize()
+    logger.info("Base de donnees initialisee")
+except Exception as e:
+    logger.error(f"Erreur BD: {e}")
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ROUTES - PAGE D'ACCUEIL
+# ROUTES PRINCIPALES
 # ═══════════════════════════════════════════════════════════════════════════
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
-    """Page d'accueil"""
-    return render_template('index.html')
-
-@app.route('/reports')
-def reports_page():
-    """Page de liste des rapports"""
-    return render_template('reports.html')
-
-@app.route('/report/<report_id>')
-def report_detail(report_id):
-    """Page de détail d'un rapport"""
-    return render_template('report.html', report_id=report_id)
-
-@app.route('/qrcode/<report_id>')
-def get_qrcode(report_id):
-    """Génère et retourne le QR code d'un rapport avec l'URL ngrok si disponible"""
-    from io import BytesIO
-    import qrcode
-    
+    """Page d'accueil - Import CSV"""
     try:
-        # Récupérer l'URL publique si ngrok est disponible
-        ngrok_url = NgrokHelper.get_public_url()
-        base_url = ngrok_url if ngrok_url else f"http://{request.host}"
-        
-        # L'URL du PDF mène directement à l'endpoint de téléchargement
-        pdf_url = f"{base_url}/api/report/{report_id}/pdf"
-        
-        logger.info(f"Génération QR code pour {report_id}: {pdf_url}")
-        
-        # Générer le QR code en mémoire
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(pdf_url)
-        qr.make(fit=True)
-        
-        img = qr.make_image(fill_color="black", back_color="white")
-        
-        # Retourner l'image en mémoire
-        img_io = BytesIO()
-        img.save(img_io, 'PNG')
-        img_io.seek(0)
-        
-        return send_file(
-            img_io,
-            mimetype='image/png',
-            as_attachment=False,
-            download_name=f'qrcode_{report_id}.png'
-        )
-    
+        stats = db.get_stats()
+        return render_template('index.html', stats=stats)
     except Exception as e:
-        logger.error(f"Erreur génération QR code: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Erreur index: {e}")
+        return render_template('index.html', stats={})
 
-@app.route('/api/report/<report_id>/pdf')
-def get_report_pdf(report_id):
-    """Génère et retourne un PDF du rapport"""
+
+@app.route('/reports', methods=['GET'])
+def reports():
+    """Page liste des rapports"""
     try:
-        # Récupérer les données du rapport
-        report_json = db.get_report_data(report_id)
-        if not report_json:
-            return jsonify({'error': 'Report not found'}), 404
-        
-        # Parser le JSON
-        import json
-        report_data = json.loads(report_json) if isinstance(report_json, str) else report_json
-        
-        # Récupérer les FAX entries
-        fax_entries = db.get_fax_entries(report_id)
-        
-        # Préparer les données pour le PDF
-        pdf_data = {
-            'id': report_id,
-            'analysis_name': report_data.get('analysis_name', 'Sans nom'),
-            'date_analyse': report_data.get('date_analyse', 'N/A'),
-            'stats': {
-                'total_fax': len(fax_entries),
-                'fax_envoyes': len([f for f in fax_entries if f.get('statut', '').lower() == 'envoyé']),
-                'fax_recus': len([f for f in fax_entries if f.get('statut', '').lower() == 'reçu']),
-                'erreurs_totales': len([f for f in fax_entries if f.get('statut', '').lower() == 'erreur']),
-                'taux_reussite': report_data.get('taux_reussite', 0)
-            },
-            'fax_data': fax_entries
-        }
-        
-        # Générer le PDF
-        pdf_buffer = PDFReportGenerator.generate_pdf(pdf_data)
-        
-        if not pdf_buffer:
-            return jsonify({'error': 'Failed to generate PDF'}), 500
-        
-        return send_file(
-            pdf_buffer,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f'rapport_{report_id}.pdf'
-        )
-    
+        reports_list = db.get_reports_list()
+        return render_template('reports.html', reports=reports_list)
     except Exception as e:
-        logger.error(f"Erreur génération PDF: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Erreur reports: {e}")
+        return render_template('reports.html', reports=[])
 
-# ═══════════════════════════════════════════════════════════════════════════
-# API - CONFIGURATION ET STATUS
-# ═══════════════════════════════════════════════════════════════════════════
 
-@app.route('/api/config')
-def api_config():
-    """Retourne la configuration et le status du serveur"""
+@app.route('/report/<report_id>', methods=['GET'])
+def report(report_id):
+    """Page détail d'un rapport"""
     try:
-        ngrok_url = NgrokHelper.get_public_url()
-        
-        return jsonify({
-            'success': True,
-            'localhost_url': 'http://127.0.0.1:5000',
-            'ngrok_url': ngrok_url,
-            'public_url': ngrok_url if ngrok_url else 'http://127.0.0.1:5000',
-            'ngrok_enabled': ngrok_url is not None,
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        logger.error(f"Erreur config: {e}")
-        return jsonify({'error': str(e)}), 500
-
-# ═══════════════════════════════════════════════════════════════════════════
-# API - GESTION FICHIERS (ENDPOINT PRINCIPAL)
-# ═══════════════════════════════════════════════════════════════════════════
-
-@app.route('/api/import', methods=['POST'])
-def api_import_file():
-    """
-    API: Importer et analyser un fichier CSV/XLSX
-    Endpoint simplifié sans paramètres - prend juste le fichier
-    """
-    try:
-        # Vérifier le fichier
-        if 'file' not in request.files:
-            return jsonify({
-                'success': False,
-                'error': 'Aucun fichier fourni'
-            }), 400
-        
-        file = request.files['file']
-        
-        if file.filename == '':
-            return jsonify({
-                'success': False,
-                'error': 'Nom de fichier vide'
-            }), 400
-        
-        # Valider l'extension
-        allowed_extensions = {'.csv', '.xlsx', '.xls'}
-        file_ext = Path(file.filename).suffix.lower()
-        
-        if file_ext not in allowed_extensions:
-            return jsonify({
-                'success': False,
-                'error': f'Format non supporté. Fichiers acceptés: CSV, XLSX'
-            }), 400
-        
-        # Sauvegarder temporairement
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
-            file.save(tmp.name)
-            temp_path = tmp.name
-        
-        try:
-            logger.info(f"Importation du fichier: {file.filename}")
-            
-            # Importer le fichier
-            import_result = importer.import_file(temp_path)
-            
-            if not import_result.get('success'):
-                logger.error(f"Erreur import: {import_result.get('errors')}")
-                return jsonify({
-                    'success': False,
-                    'error': f'Erreur lors de l\'import du fichier'
-                }), 400
-            
-            rows = import_result.get('data', [])
-            logger.info(f"Fichier charge: {len(rows)} lignes")
-            
-            # Analyser les données avec paramètres par défaut
-            analysis = analyzer.analyze_data(
-                rows,
-                contract_id='AUTO_IMPORT',
-                date_debut='2024-01-01',
-                date_fin='2024-12-31'
-            )
-            analysis['fichier_source'] = file.filename
-            
-            # Générer le rapport
-            report_result = reporter.generate_report(analysis)
-            
-            if report_result['success']:
-                logger.info(f"Rapport genere: {report_result['rapport_id']}")
-                
-                stats = analysis.get('statistics', {})
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Fichier importé et analysé avec succès',
-                    'rapport_id': report_result['rapport_id'],
-                    'report_url': f"/report/{report_result['rapport_id']}",
-                    'stats': {
-                        'total_fax': stats.get('total_fax', 0),
-                        'fax_envoyes': stats.get('fax_envoyes', 0),
-                        'fax_recus': stats.get('fax_recus', 0),
-                        'pages_totales': stats.get('pages_totales', 0),
-                        'erreurs_totales': stats.get('erreurs_totales', 0),
-                        'taux_reussite': stats.get('taux_reussite', 0)
-                    }
-                }), 200
-            else:
-                logger.error(f"Erreur rapport: {report_result.get('message')}")
-                return jsonify({
-                    'success': False,
-                    'error': report_result.get('message', 'Erreur lors de la génération du rapport')
-                }), 500
-        
-        except Exception as e:
-            logger.error(f"Erreur lors du traitement: {str(e)}", exc_info=True)
-            return jsonify({
-                'success': False,
-                'error': f'Erreur lors de l\'analyse: {str(e)}'
-            }), 500
-        
-        finally:
-            # Nettoyer le fichier temporaire
-            try:
-                os.remove(temp_path)
-            except:
-                pass
-    
-    except Exception as e:
-        logger.error(f"Erreur API import: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# ═══════════════════════════════════════════════════════════════════════════
-# API - CONSULTATION RAPPORTS
-# ═══════════════════════════════════════════════════════════════════════════
-
-@app.route('/api/reports', methods=['GET'])
-def api_list_reports():
-    """API: Lister tous les rapports"""
-    try:
-        page = request.args.get('page', 1, type=int)
-        limit = request.args.get('limit', 10, type=int)
-        offset = (page - 1) * limit
-        
-        reports = db.list_reports(limit=limit, offset=offset)
-        stats = db.get_statistics()
-        
-        return jsonify({
-            'success': True,
-            'reports': reports,
-            'stats': stats,
-            'pagination': {
-                'page': page,
-                'limit': limit
-            }
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Erreur API reports: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/report/<report_id>', methods=['GET'])
-def api_get_report(report_id):
-    """API: Récupérer les détails d'un rapport"""
-    try:
-        report_data = reporter.load_report_json(report_id)
-        
-        if not report_data:
-            return jsonify({
-                'success': False,
-                'error': 'Rapport non trouvé'
-            }), 404
-        
-        # Récupérer les entrées
-        entries = db.get_fax_entries(report_id)
-        
-        return jsonify({
-            'success': True,
-            'report': report_data,
-            'entries': entries
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Erreur API report detail: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/report/<report_id>/entries', methods=['GET'])
-def api_get_report_entries(report_id):
-    """API: Récupérer les entrées (lignes FAX) d'un rapport"""
-    try:
-        only_errors = request.args.get('errors_only', False, type=bool)
-        entries = db.get_fax_entries(report_id, only_errors=only_errors)
-        
-        return jsonify({
-            'success': True,
-            'entries': entries,
-            'count': len(entries)
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Erreur API report entries: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/report/<report_id>/errors', methods=['GET'])
-def api_get_report_errors(report_id):
-    """API: Récupérer uniquement les erreurs d'un rapport"""
-    try:
-        entries = db.get_fax_entries(report_id, only_errors=True)
-        
-        return jsonify({
-            'success': True,
-            'errors': entries,
-            'error_count': len(entries)
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Erreur API report errors: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/analysis_history', methods=['GET'])
-def api_get_analysis_history():
-    """API: Récupérer l'historique des analyses"""
-    try:
-        page = request.args.get('page', 1, type=int)
-        limit = request.args.get('limit', 10, type=int)
-        offset = (page - 1) * limit
-        
-        analyses = db.get_analysis_history(limit=limit, offset=offset)
-        
-        return jsonify({
-            'success': True,
-            'analyses': analyses,
-            'pagination': {
-                'page': page,
-                'limit': limit
-            }
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Erreur API analysis_history: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# ═══════════════════════════════════════════════════════════════════════════
-# API - PARTAGE DE RAPPORTS
-# ═══════════════════════════════════════════════════════════════════════════
-
-@app.route('/api/report/<report_id>/share', methods=['POST'])
-def api_create_share_link(report_id):
-    """API: Créer un lien de partage pour un rapport"""
-    try:
-        days = request.json.get('days', 7) if request.json else 7
-        utilisateur = request.json.get('utilisateur') if request.json else None
-        
-        token = db.create_share_token(report_id, days=days, utilisateur=utilisateur)
-        
-        share_url = f"{request.host_url.rstrip('/')}/share/{token}"
-        
-        return jsonify({
-            'success': True,
-            'token': token,
-            'share_url': share_url,
-            'expires_in_days': days,
-            'message': 'Lien de partage créé avec succès'
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Erreur API create_share_link: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/share/<token>')
-def share_report(token):
-    """Page publique pour accéder à un rapport partagé"""
-    try:
-        report_data = db.get_report_by_share_token(token)
-        
+        report_data = db.get_report(report_id)
         if not report_data:
             return render_template('404.html'), 404
-        
-        return render_template('report.html', report_id=report_data['rapport_id'])
-    
+        return render_template('report.html', report=report_data, report_id=report_id)
     except Exception as e:
-        logger.error(f"Erreur share_report: {str(e)}", exc_info=True)
+        logger.error(f"Erreur report: {e}")
         return render_template('500.html'), 500
 
-@app.route('/api/share/<token>/report', methods=['GET'])
-def api_get_shared_report(token):
-    """API: Récupérer un rapport partagé"""
+
+# ═══════════════════════════════════════════════════════════════════════════
+# API ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/upload', methods=['POST'])
+def api_upload():
+    """Upload et import de fichiers CSV"""
     try:
-        report_data = db.get_report_by_share_token(token)
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Pas de fichier'}), 400
         
-        if not report_data:
-            return jsonify({
-                'success': False,
-                'error': 'Lien expiré ou invalide'
-            }), 403
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'Fichier vide'}), 400
         
-        entries = db.get_fax_entries(report_data['rapport_id'])
+        filename = secure_filename(file.filename)
+        filepath = Path(app.config['UPLOAD_FOLDER']) / filename
+        file.save(str(filepath))
+        
+        # Importer le fichier
+        importer = FileImporter(db)
+        result = importer.import_file(str(filepath))
         
         return jsonify({
             'success': True,
-            'report': report_data,
-            'entries': entries
-        }), 200
+            'imported': result['imported'],
+            'errors': result['errors'],
+            'message': f"{result['imported']} enregistrements importés"
+        })
     
     except Exception as e:
-        logger.error(f"Erreur API get_shared_report: {str(e)}", exc_info=True)
+        logger.error(f"Erreur upload: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stats', methods=['GET'])
+def api_stats():
+    """Récupérer les statistiques"""
+    try:
+        stats = db.get_stats()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Erreur stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/entries', methods=['GET'])
+def api_entries():
+    """Récupérer les entrées avec filtres"""
+    try:
+        filter_type = request.args.get('filter', 'all')
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 20))
+        
+        offset = (page - 1) * limit
+        entries = db.get_entries(limit=limit, offset=offset, filter_type=filter_type)
+        total = db.count_entries(filter_type=filter_type)
+        
         return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 403
+            'entries': entries,
+            'total': total,
+            'page': page,
+            'pages': (total + limit - 1) // limit
+        })
+    except Exception as e:
+        logger.error(f"Erreur entries: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/report/<report_id>/data', methods=['GET'])
+def api_report_data(report_id):
+    """Récupérer les données d'un rapport"""
+    try:
+        report_data = db.get_report(report_id)
+        if not report_data:
+            return jsonify({'error': 'Rapport non trouvé'}), 404
+        return jsonify(report_data)
+    except Exception as e:
+        logger.error(f"Erreur report data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/report/<report_id>/pdf', methods=['GET'])
+def api_report_pdf(report_id):
+    """Générer et télécharger PDF du rapport"""
+    try:
+        report_data = db.get_report(report_id)
+        if not report_data:
+            return jsonify({'error': 'Rapport non trouvé'}), 404
+        
+        # Récupérer l'URL publique ngrok si disponible
+        public_url = NgrokHelper.get_public_url() or "http://localhost:5000"
+        
+        # Générer le PDF avec QR code
+        generator = ReportGenerator(db, public_url=public_url)
+        pdf_bytes = generator.generate_pdf_report(report_data)
+        
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f"rapport_{report_id}.pdf"
+        )
+    except Exception as e:
+        logger.error(f"Erreur PDF: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/report/<report_id>/qrcode', methods=['GET'])
+def api_report_qrcode(report_id):
+    """Générer le QR code d'un rapport"""
+    try:
+        from core.pdf_generator import QRCodeGenerator
+        
+        # Récupérer l'URL publique
+        public_url = NgrokHelper.get_public_url() or "http://localhost:5000"
+        report_url = f"{public_url}/report/{report_id}"
+        
+        # Générer le QR code
+        qr_gen = QRCodeGenerator()
+        qr_image = qr_gen.generate(report_url)
+        
+        return send_file(
+            io.BytesIO(qr_image),
+            mimetype='image/png'
+        )
+    except Exception as e:
+        logger.error(f"Erreur QR: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/clear', methods=['POST'])
+def api_clear():
+    """Effacer toutes les données"""
+    try:
+        db.clear_all()
+        return jsonify({'success': True, 'message': 'Données effacées'})
+    except Exception as e:
+        logger.error(f"Erreur clear: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 # ═══════════════════════════════════════════════════════════════════════════
-# GESTION DES ERREURS
+# PAGES D'ERREUR
 # ═══════════════════════════════════════════════════════════════════════════
 
 @app.errorhandler(404)
-def not_found(error):
-    """Erreur 404"""
+def not_found(e):
     return render_template('404.html'), 404
 
+
 @app.errorhandler(500)
-def internal_error(error):
-    """Erreur 500"""
-    logger.error(f"Erreur 500: {error}")
+def server_error(e):
     return render_template('500.html'), 500
 
+
 # ═══════════════════════════════════════════════════════════════════════════
-# DÉMARRAGE
+# LANCEMENT
 # ═══════════════════════════════════════════════════════════════════════════
 
 if __name__ == '__main__':
-    try:
-        # Initialiser la base de données
-        db.initialize()
-        logger.info("Base de donnees initialisee")
-        
-        # Démarrer l'app
-        host = Config.FLASK_CONFIG.get('HOST', '127.0.0.1')
-        port = Config.FLASK_CONFIG.get('PORT', 5000)
-        
-        # Vérifier si on veut ngrok (env var ou en local)
-        use_ngrok = os.environ.get('USE_NGROK', 'true').lower() == 'true'
-        
-        logger.info(f"Demarrage du serveur: http://{host}:{port}")
-        
-        # Si ngrok est activé, le démarrer dans un thread
-        if use_ngrok:
-            try:
-                import threading
-                from time import sleep
-                
-                def start_ngrok():
-                    sleep(3)  # Attendre que Flask démarre
-                    NgrokHelper.start_tunnel_subprocess(port)
-                
-                ngrok_thread = threading.Thread(target=start_ngrok, daemon=True)
-                ngrok_thread.start()
-                logger.info("Démarrage de ngrok en arrière-plan...")
-            except Exception as e:
-                logger.warning(f"Erreur ngrok: {e}")
-        else:
-            logger.info("ngrok désactivé (USE_NGROK=false)")
-        
-        app.run(
-            host=host,
-            port=port,
-            debug=Config.FLASK_CONFIG.get('DEBUG', False),
-            use_reloader=False
-        )
+    logger.info("Demarrage du serveur: http://127.0.0.1:5000")
     
-    except Exception as e:
-        logger.error(f"Erreur lors du demarrage: {str(e)}", exc_info=True)
-        sys.exit(1)
+    # Demarrer ngrok en arriere-plan
+    logger.info("Demarrage de ngrok en arriere-plan...")
+    NgrokHelper.start_tunnel_subprocess()
+    
+    # Lancer Flask
+    app.run(
+        host='127.0.0.1',
+        port=5000,
+        debug=False,
+        use_reloader=False
+    )

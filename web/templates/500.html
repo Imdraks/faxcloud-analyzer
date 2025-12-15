@@ -3,33 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Erreur serveur - FaxCloud Analyzer</title>
+    <title>Erreur 500 - Erreur serveur</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <div class="header-content">
-                <h1>📞 FaxCloud Analyzer</h1>
-            </div>
-            <nav class="nav">
-                <a href="/" class="nav-link">Accueil</a>
-                <a href="/reports" class="nav-link">Rapports</a>
-            </nav>
+            <h1>⚠️ Erreur 500</h1>
         </header>
-
         <main class="main">
-            <section class="section">
-                <div style="text-align: center; padding: 40px 0;">
-                    <h2>❌ Erreur serveur</h2>
-                    <p>Une erreur s'est produite. Veuillez réessayer plus tard.</p>
-                    <a href="/" class="btn btn-primary">Retour à l'accueil</a>
-                </div>
+            <section class="section" style="text-align: center;">
+                <h2>Erreur serveur interne</h2>
+                <p class="text-muted" style="margin: 2rem 0;">Une erreur s'est produite. Veuillez réessayer plus tard.</p>
+                <a href="/" class="btn">← Retour à l'accueil</a>
             </section>
         </main>
-
         <footer class="footer">
-            <p>&copy; 2024 FaxCloud Analyzer - TAKELEAD</p>
+            <p>FaxCloud Analyzer v1.0</p>
         </footer>
     </div>
 </body>

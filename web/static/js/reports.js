@@ -1,41 +1,77 @@
-/* Reports list page */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* FAXCLOUD ANALYZER - REPORTS LIST */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 
-function loadReports() {
-    fetch('/api/reports?limit=50')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                displayReports(data.reports);
-            } else {
-                document.getElementById('reportsList').innerHTML = 
-                    '<p class="error">Erreur lors du chargement</p>';
-            }
-        })
-        .catch(err => {
-            document.getElementById('reportsList').innerHTML = 
-                '<p class="error">Erreur: ' + err.message + '</p>';
-        });
-}
-
-function displayReports(reports) {
-    if (!reports || reports.length === 0) {
-        document.getElementById('reportsList').innerHTML = 
-            '<p class="text-muted">Aucun rapport disponible</p>';
-        return;
+class ReportsApp {
+    constructor() {
+        this.init();
     }
-    
-    const html = reports.map(report => `
-        <div class="report-item">
-            <h3>${report.contract_id || 'N/A'}</h3>
-            <p><strong>ID:</strong> <code>${report.id}</code></p>
-            <p><strong>Date:</strong> ${new Date(report.timestamp).toLocaleDateString('fr-FR')} à ${new Date(report.timestamp).toLocaleTimeString('fr-FR')}</p>
-            <p><strong>Total FAX:</strong> ${report.total_fax || 0} | <strong>Erreurs:</strong> ${report.erreurs_totales || 0}</p>
-            <p><strong>Taux réussite:</strong> ${(report.taux_reussite || 0).toFixed(1)}%</p>
-            <a href="/report/${report.id}" class="btn">Consulter le rapport</a>
-        </div>
-    `).join('');
-    
-    document.getElementById('reportsList').innerHTML = html;
+
+    async init() {
+        await this.loadReports();
+    }
+
+    async loadReports() {
+        try {
+            const response = await fetch('/api/entries?limit=100&filter=all');
+            const data = await response.json();
+
+            const reportsList = document.getElementById('reportsList');
+
+            if (!data.entries || data.entries.length === 0) {
+                reportsList.innerHTML = '<p class="text-center text-muted">Aucun rapport disponible</p>';
+                return;
+            }
+
+            // Grouper par date et créer des rapports
+            const reportMap = new Map();
+            data.entries.forEach(entry => {
+                const date = new Date(entry.date).toLocaleDateString('fr-FR');
+                if (!reportMap.has(date)) {
+                    reportMap.set(date, {
+                        date: date,
+                        total: 0,
+                        sent: 0,
+                        received: 0,
+                        errors: 0
+                    });
+                }
+
+                const report = reportMap.get(date);
+                report.total++;
+                if (entry.type === 'sent' || entry.status === 'sent') report.sent++;
+                if (entry.type === 'received' || entry.status === 'received') report.received++;
+                if (entry.status === 'error') report.errors++;
+            });
+
+            // Afficher les rapports
+            reportsList.innerHTML = '';
+            let reportId = 1;
+
+            reportMap.forEach((report, date) => {
+                const item = document.createElement('div');
+                item.className = 'analysis-item';
+                item.innerHTML = `
+                    <h3>📅 Rapport du ${report.date}</h3>
+                    <p class="text-muted">Total: <strong>${report.total}</strong> | 
+                       Envoyés: <strong>${report.sent}</strong> | 
+                       Reçus: <strong>${report.received}</strong> | 
+                       Erreurs: <strong>${report.errors}</strong></p>
+                    <p class="meta">
+                        <a href="/report/report-${reportId++}" class="btn" style="margin: 0.5rem 0; margin-right: 0.5rem;">Voir le rapport →</a>
+                    </p>
+                `;
+                reportsList.appendChild(item);
+            });
+        } catch (error) {
+            console.error('Erreur reports:', error);
+            document.getElementById('reportsList').innerHTML = 
+                '<p class="text-center text-muted">Erreur lors du chargement</p>';
+        }
+    }
 }
 
-document.addEventListener('DOMContentLoaded', loadReports);
+// Initialiser l'app
+document.addEventListener('DOMContentLoaded', () => {
+    new ReportsApp();
+});
