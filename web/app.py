@@ -108,18 +108,71 @@ def api_upload():
         file.save(str(filepath))
         
         # Importer le fichier
-        importer = FileImporter(db)
+        importer = FileImporter()
         result = importer.import_file(str(filepath))
+        
+        if not result.get('success', False):
+            return jsonify({
+                'success': False,
+                'error': result.get('errors', ['Erreur inconnue'])[0]
+            }), 400
+        
+        # Sauvegarder dans la base de données
+        entries = result.get('data', [])
+        saved_count = 0
+        
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            from uuid import uuid4
+            
+            for entry in entries:
+                try:
+                    # Créer un ID unique pour l'entrée
+                    entry_id = str(uuid4())
+                    
+                    # Insérer directement dans la BDD
+                    cursor.execute("""
+                        INSERT INTO fax_entries (
+                            id, report_id, fax_id, utilisateur, mode, date_heure,
+                            numero_original, numero_normalise, pages, valide, erreurs
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        entry_id,
+                        'import_' + entry_id[:8],  # report_id temporaire
+                        entry.get('fax_id'),
+                        entry.get('utilisateur'),
+                        entry.get('mode'),
+                        entry.get('datetime'),
+                        entry.get('numero_envoi'),
+                        entry.get('numero_appele'),
+                        entry.get('pages_reelles'),
+                        1,  # valide
+                        ''  # pas d'erreurs
+                    ))
+                    saved_count += 1
+                except Exception as e:
+                    logger.warning(f"Erreur sauvegarde entrée: {e}")
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Erreur sauvegarde base: {e}")
+            saved_count = 0
         
         return jsonify({
             'success': True,
-            'imported': result['imported'],
-            'errors': result['errors'],
-            'message': f"{result['imported']} enregistrements importés"
+            'imported': saved_count,
+            'total': len(entries),
+            'errors': result.get('errors', []),
+            'message': f"{saved_count}/{len(entries)} enregistrements importés"
         })
     
     except Exception as e:
         logger.error(f"Erreur upload: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
