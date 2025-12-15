@@ -244,24 +244,30 @@ def api_upload():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# API ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════
+
 @app.route('/api/stats', methods=['GET'])
 def api_stats():
-    """Récupérer les statistiques"""
+    """Récupérer les statistiques globales"""
     try:
         stats = db.get_stats()
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Erreur stats: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'total': 0, 'sent': 0, 'received': 0, 'errors': 0})
 
 
 @app.route('/api/entries', methods=['GET'])
 def api_entries():
-    """Récupérer les entrées avec filtres"""
+    """Récupérer les entrées avec pagination"""
     try:
         filter_type = request.args.get('filter', 'all')
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 20))
+        limit = int(request.args.get('limit', 100))
         
         offset = (page - 1) * limit
         entries = db.get_entries(limit=limit, offset=offset, filter_type=filter_type)
@@ -271,16 +277,17 @@ def api_entries():
             'entries': entries,
             'total': total,
             'page': page,
+            'limit': limit,
             'pages': (total + limit - 1) // limit
         })
     except Exception as e:
         logger.error(f"Erreur entries: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'entries': [], 'total': 0, 'error': str(e)})
 
 
 @app.route('/api/report/<report_id>/data', methods=['GET'])
 def api_report_data(report_id):
-    """Récupérer les données d'un rapport avec ses statistiques"""
+    """Récupérer les données complètes d'un rapport"""
     try:
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -299,35 +306,37 @@ def api_report_data(report_id):
             conn.close()
             return jsonify({'error': 'Rapport non trouvé'}), 404
         
-        # Récupérer les entrées FAX de ce rapport
+        # Récupérer TOUTES les entrées FAX de ce rapport (pas de limite)
         cursor.execute("""
             SELECT id, fax_id, utilisateur, mode, date_heure, numero_original,
                    numero_normalise, pages, valide, erreurs
             FROM fax_entries
             WHERE report_id = %s
             ORDER BY date_heure DESC
-            LIMIT 50
         """, (report_id,))
         
         entries = cursor.fetchall()
         cursor.close()
         conn.close()
         
-        # Calculer les stats
-        total = len(entries)
-        sent = sum(1 for e in entries if e['mode'] == 'SF')
-        received = sum(1 for e in entries if e['mode'] == 'RF')
-        errors = sum(1 for e in entries if e['valide'] == 0)
+        # Utiliser les stats réelles du rapport
+        total = report['total_fax']
+        sent = report['fax_envoyes']
+        received = report['fax_recus']
+        errors = report['erreurs_totales']
+        success_rate = report['taux_reussite']
         
         return jsonify({
             'id': report['id'],
             'title': f"Rapport - {report['fichier_source']}",
             'date': report['date_rapport'].strftime('%d/%m/%Y') if hasattr(report['date_rapport'], 'strftime') else str(report['date_rapport']),
-            'summary': f"Rapport d'analyse FAX - {total} entrées",
+            'summary': f"Rapport d'analyse FAX - {total} FAX analysés",
             'total': total,
             'sent': sent,
             'received': received,
             'errors': errors,
+            'success_rate': success_rate,
+            'entries_count': len(entries),
             'entries': entries
         })
     except Exception as e:
@@ -337,19 +346,62 @@ def api_report_data(report_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/report/<report_id>/qrcode', methods=['GET'])
+def api_report_qrcode(report_id):
+    """Générer le QR code d'un rapport"""
+    try:
+        import qrcode
+        import io
+        
+        # Construire l'URL publique
+        public_url = "http://localhost:5000"  # Par défaut local
+        if Config.USE_NGROK:
+            ngrok_url = NgrokHelper.get_public_url()
+            if ngrok_url:
+                public_url = ngrok_url
+        
+        report_url = f"{public_url}/report/{report_id}"
+        
+        # Générer le QR code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(report_url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convertir en PNG
+        img_io = io.BytesIO()
+        img.save(img_io, 'PNG')
+        img_io.seek(0)
+        
+        return send_file(
+            img_io,
+            mimetype='image/png',
+            as_attachment=False
+        )
+    except Exception as e:
+        logger.error(f"Erreur QR: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/report/<report_id>/pdf', methods=['GET'])
 def api_report_pdf(report_id):
     """Générer et télécharger PDF du rapport"""
     try:
-        report_data = db.get_report(report_id)
-        if not report_data:
+        # Récupérer les données du rapport
+        response = api_report_data(report_id)
+        if response.status_code != 200:
             return jsonify({'error': 'Rapport non trouvé'}), 404
         
-        # Récupérer l'URL publique ngrok si disponible
-        public_url = NgrokHelper.get_public_url() or "http://localhost:5000"
+        report_data = response.get_json()
         
-        # Générer le PDF avec QR code
-        generator = ReportGenerator(db, public_url=public_url)
+        # Générer le PDF
+        generator = ReportGenerator(db)
         pdf_bytes = generator.generate_pdf_report(report_data)
         
         return send_file(
@@ -363,29 +415,6 @@ def api_report_pdf(report_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/report/<report_id>/qrcode', methods=['GET'])
-def api_report_qrcode(report_id):
-    """Générer le QR code d'un rapport"""
-    try:
-        from core.pdf_generator import QRCodeGenerator
-        
-        # Récupérer l'URL publique
-        public_url = NgrokHelper.get_public_url() or "http://localhost:5000"
-        report_url = f"{public_url}/report/{report_id}"
-        
-        # Générer le QR code
-        qr_gen = QRCodeGenerator()
-        qr_image = qr_gen.generate(report_url)
-        
-        return send_file(
-            io.BytesIO(qr_image),
-            mimetype='image/png'
-        )
-    except Exception as e:
-        logger.error(f"Erreur QR: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
 @app.route('/api/clear', methods=['POST'])
 def api_clear():
     """Effacer toutes les données"""
@@ -395,6 +424,7 @@ def api_clear():
     except Exception as e:
         logger.error(f"Erreur clear: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════

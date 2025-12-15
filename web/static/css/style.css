@@ -262,6 +262,33 @@ html, body {
     box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
 }
 
+/* Filter buttons pour rapports */
+.filter-btn {
+    padding: 0.7rem 1.5rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 2px solid rgba(59, 130, 246, 0.4);
+    color: var(--text);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.filter-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.filter-btn.active {
+    background: linear-gradient(135deg, var(--primary), #2563eb);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /* STATS GRID */
 /* ═══════════════════════════════════════════════════════════════════════════ */

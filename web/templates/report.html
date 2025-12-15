@@ -61,13 +61,35 @@
                         <h4>Erreurs</h4>
                         <p class="stat-value" id="statErrors">-</p>
                     </div>
+                    <div class="stat-card">
+                        <h4>Taux de Réussite</h4>
+                        <p class="stat-value" id="statSuccessRate">-</p>
+                    </div>
                 </div>
             </section>
 
             <!-- DETAILS -->
             <section class="section">
                 <h3>📋 Détails</h3>
-                <div id="reportDetails" class="analysis-list">
+                
+                <!-- FILTRES -->
+                <div style="margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <button class="filter-btn" id="filterAll" data-filter="all">
+                        📌 Tous
+                    </button>
+                    <button class="filter-btn" id="filterSent" data-filter="sent">
+                        📤 Envoyés
+                    </button>
+                    <button class="filter-btn" id="filterReceived" data-filter="received">
+                        📥 Reçus
+                    </button>
+                    <button class="filter-btn" id="filterError" data-filter="error">
+                        ⚠️ Erreurs
+                    </button>
+                </div>
+                
+                <!-- TABLEAU -->
+                <div id="reportDetails" style="overflow-x: auto;">
                     <p class="text-muted">Chargement des détails...</p>
                 </div>
             </section>
