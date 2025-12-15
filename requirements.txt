@@ -16,10 +16,11 @@ mysql-connector-python>=8.0.0
 python-dotenv>=1.0.0
 
 # ====================================
-# Génération QR codes et images
+# Génération QR codes, images et PDF
 # ====================================
 qrcode>=7.4.0
 pillow>=10.0.0
+reportlab>=4.0.0
 
 # ====================================
 # Interface web et API
