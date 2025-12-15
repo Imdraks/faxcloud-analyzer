@@ -583,4 +583,169 @@ class DatabaseMySQL:
         
         except mysql.connector.Error as e:
             logger.error(f"Erreur MySQL delete_share_token: {e}")
-            return False
+            return False    
+    # ═════════════════════════════════════════════════════════════════════
+    # STATISTIQUES ET STATISTIQUES
+    # ═════════════════════════════════════════════════════════════════════
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Récupère les statistiques globales"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_rapports,
+                    COALESCE(SUM(total_fax), 0) as total_fax,
+                    COALESCE(SUM(erreurs_totales), 0) as total_erreurs,
+                    COALESCE(AVG(taux_reussite), 0) as taux_moyen,
+                    COUNT(DISTINCT contract_id) as clients_uniques
+                FROM reports
+            """)
+            
+            row = cursor.fetchone()
+            
+            stats = {
+                'total_reports': row[0] or 0,
+                'total_fax': row[1] or 0,
+                'total_errors': row[2] or 0,
+                'avg_success_rate': round(float(row[3] or 0), 2),
+                'unique_clients': row[4] or 0
+            }
+            
+            cursor.close()
+            conn.close()
+            return stats
+            
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL get_stats: {e}")
+            return {}
+    
+    def get_entries(self, limit: int = 10, offset: int = 0, filter_type: str = 'all') -> List[Dict[str, Any]]:
+        """Récupère les entrées FAX avec pagination"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Requête de base
+            query = "SELECT * FROM fax_entries"
+            params = []
+            
+            # Appliquer les filtres
+            if filter_type == 'error':
+                query += " WHERE valide = 0"
+            elif filter_type == 'valid':
+                query += " WHERE valide = 1"
+            elif filter_type == 'sent':
+                query += " WHERE mode = 'SF'"
+            elif filter_type == 'received':
+                query += " WHERE mode = 'RF'"
+            
+            # Pagination
+            query += " LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            cursor.close()
+            conn.close()
+            return rows or []
+            
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL get_entries: {e}")
+            return []
+    
+    def count_entries(self, filter_type: str = 'all') -> int:
+        """Compte le nombre d'entrées FAX"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            if filter_type == 'error':
+                cursor.execute("SELECT COUNT(*) FROM fax_entries WHERE valide = 0")
+            elif filter_type == 'valid':
+                cursor.execute("SELECT COUNT(*) FROM fax_entries WHERE valide = 1")
+            elif filter_type == 'sent':
+                cursor.execute("SELECT COUNT(*) FROM fax_entries WHERE mode = 'SF'")
+            elif filter_type == 'received':
+                cursor.execute("SELECT COUNT(*) FROM fax_entries WHERE mode = 'RF'")
+            else:
+                cursor.execute("SELECT COUNT(*) FROM fax_entries")
+            
+            count = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
+            return count
+            
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL count_entries: {e}")
+            return 0
+    
+    def get_reports_list(self, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
+        """Récupère la liste des rapports avec pagination"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            cursor.execute("""
+                SELECT 
+                    id, date_rapport, contract_id, total_fax, fax_envoyes, 
+                    fax_recus, erreurs_totales, taux_reussite, fichier_source
+                FROM reports
+                ORDER BY date_rapport DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+            
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            return rows or []
+            
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL get_reports_list: {e}")
+            return []
+    
+    def count_reports(self) -> int:
+        """Compte le nombre de rapports"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT COUNT(*) FROM reports")
+            count = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
+            return count
+            
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL count_reports: {e}")
+            return 0
+    
+    def clear_all(self) -> None:
+        """Efface toutes les données des tables"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Désactiver les vérifications de clés étrangères
+            cursor.execute("SET FOREIGN_KEY_CHECKS=0")
+            
+            # Vider les tables
+            cursor.execute("TRUNCATE TABLE fax_entries")
+            cursor.execute("TRUNCATE TABLE analysis_history")
+            cursor.execute("TRUNCATE TABLE share_tokens")
+            cursor.execute("TRUNCATE TABLE reports")
+            
+            # Réactiver les vérifications
+            cursor.execute("SET FOREIGN_KEY_CHECKS=1")
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            logger.info("Toutes les données ont été supprimées")
+        except mysql.connector.Error as e:
+            logger.error(f"Erreur MySQL clear_all: {e}")
+            raise

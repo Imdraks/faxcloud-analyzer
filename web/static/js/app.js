@@ -81,8 +81,10 @@ class FaxApp {
 
             if (data.success) {
                 this.showMessage('success', `✓ ${data.message}`);
-                this.loadStats();
-                this.loadEntries();
+                // Rediriger vers le rapport après 1 seconde
+                setTimeout(() => {
+                    window.location.href = `/report/${data.report_id}`;
+                }, 1000);
             } else {
                 this.showMessage('error', `✗ Erreur: ${data.error}`);
             }

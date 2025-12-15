@@ -122,16 +122,53 @@ def api_upload():
         saved_count = 0
         
         try:
+            from uuid import uuid4
+            import json
+            
+            # Créer un rapport d'import
+            report_id = 'import_' + str(uuid4())[:12]
             conn = db.get_connection()
             cursor = conn.cursor()
-            from uuid import uuid4
             
+            # Calculer les stats avant d'insérer
+            total_fax = len(entries)
+            fax_envoyes = sum(1 for e in entries if e.get('mode') == 'SF')
+            fax_recus = sum(1 for e in entries if e.get('mode') == 'RF')
+            erreurs_totales = sum(1 for e in entries if e.get('erreurs'))
+            taux_reussite = ((total_fax - erreurs_totales) / total_fax * 100) if total_fax > 0 else 0.0
+            pages_totales = sum(e.get('pages_reelles', 0) for e in entries if isinstance(e.get('pages_reelles'), (int, float)))
+            
+            # Insérer le rapport
+            cursor.execute("""
+                INSERT INTO reports (
+                    id, date_rapport, contract_id, date_debut, date_fin,
+                    fichier_source, total_fax, fax_envoyes, fax_recus,
+                    pages_totales, pages_envoyees, pages_recues,
+                    erreurs_totales, taux_reussite, donnees_json
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                report_id,
+                datetime.now(),
+                'IMPORT',
+                datetime.now().date(),
+                datetime.now().date(),
+                filename,
+                total_fax,
+                fax_envoyes, fax_recus, pages_totales, 0, 0,
+                erreurs_totales, taux_reussite,
+                json.dumps({'import': True, 'stats': {
+                    'total': total_fax, 'sent': fax_envoyes, 'received': fax_recus,
+                    'errors': erreurs_totales, 'success_rate': taux_reussite
+                }})
+            ))
+            
+            conn.commit()
+            
+            # Maintenant insérer les entrées FAX
             for entry in entries:
                 try:
-                    # Créer un ID unique pour l'entrée
                     entry_id = str(uuid4())
                     
-                    # Insérer directement dans la BDD
                     cursor.execute("""
                         INSERT INTO fax_entries (
                             id, report_id, fax_id, utilisateur, mode, date_heure,
@@ -139,7 +176,7 @@ def api_upload():
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         entry_id,
-                        'import_' + entry_id[:8],  # report_id temporaire
+                        report_id,
                         entry.get('fax_id'),
                         entry.get('utilisateur'),
                         entry.get('mode'),
@@ -155,14 +192,45 @@ def api_upload():
                     logger.warning(f"Erreur sauvegarde entrée: {e}")
             
             conn.commit()
+            
+            # Ajouter une entrée dans analysis_history
+            try:
+                analysis_id = str(uuid4())
+                timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+                
+                cursor.execute("""
+                    INSERT INTO analysis_history (
+                        id, report_id, analysis_name, fichier_source, date_analyse,
+                        total_fax, fax_envoyes, fax_recus, erreurs_totales, taux_reussite,
+                        statut, message
+                    ) VALUES (%s, %s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    analysis_id,
+                    report_id,
+                    f"{filename.split('.')[0]} - {timestamp}",
+                    filename,
+                    len(entries),
+                    sum(1 for e in entries if e.get('mode') == 'SF'),  # fax_envoyes
+                    sum(1 for e in entries if e.get('mode') == 'RF'),  # fax_recus
+                    sum(1 for e in entries if e.get('valide', True) == False or e.get('erreurs')),  # erreurs
+                    100.0 if saved_count > 0 else 0.0,  # taux_reussite
+                    'completed',
+                    f"Import: {saved_count} FAX importés"
+                ))
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Erreur insertion analysis_history: {e}")
+            
             cursor.close()
             conn.close()
         except Exception as e:
             logger.error(f"Erreur sauvegarde base: {e}")
-            saved_count = 0
+            import traceback
+            traceback.print_exc()
         
         return jsonify({
             'success': True,
+            'report_id': report_id,
             'imported': saved_count,
             'total': len(entries),
             'errors': result.get('errors', []),
@@ -212,14 +280,60 @@ def api_entries():
 
 @app.route('/api/report/<report_id>/data', methods=['GET'])
 def api_report_data(report_id):
-    """Récupérer les données d'un rapport"""
+    """Récupérer les données d'un rapport avec ses statistiques"""
     try:
-        report_data = db.get_report(report_id)
-        if not report_data:
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Récupérer le rapport
+        cursor.execute("""
+            SELECT id, date_rapport, fichier_source, total_fax, fax_envoyes, 
+                   fax_recus, erreurs_totales, taux_reussite
+            FROM reports
+            WHERE id = %s
+        """, (report_id,))
+        
+        report = cursor.fetchone()
+        if not report:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Rapport non trouvé'}), 404
-        return jsonify(report_data)
+        
+        # Récupérer les entrées FAX de ce rapport
+        cursor.execute("""
+            SELECT id, fax_id, utilisateur, mode, date_heure, numero_original,
+                   numero_normalise, pages, valide, erreurs
+            FROM fax_entries
+            WHERE report_id = %s
+            ORDER BY date_heure DESC
+            LIMIT 50
+        """, (report_id,))
+        
+        entries = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Calculer les stats
+        total = len(entries)
+        sent = sum(1 for e in entries if e['mode'] == 'SF')
+        received = sum(1 for e in entries if e['mode'] == 'RF')
+        errors = sum(1 for e in entries if e['valide'] == 0)
+        
+        return jsonify({
+            'id': report['id'],
+            'title': f"Rapport - {report['fichier_source']}",
+            'date': report['date_rapport'].strftime('%d/%m/%Y') if hasattr(report['date_rapport'], 'strftime') else str(report['date_rapport']),
+            'summary': f"Rapport d'analyse FAX - {total} entrées",
+            'total': total,
+            'sent': sent,
+            'received': received,
+            'errors': errors,
+            'entries': entries
+        })
     except Exception as e:
         logger.error(f"Erreur report data: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -304,9 +418,12 @@ def server_error(e):
 if __name__ == '__main__':
     logger.info("Demarrage du serveur: http://127.0.0.1:5000")
     
-    # Demarrer ngrok en arriere-plan
-    logger.info("Demarrage de ngrok en arriere-plan...")
-    NgrokHelper.start_tunnel_subprocess()
+    # Demarrer ngrok en arriere-plan (si activé)
+    if Config.USE_NGROK:
+        logger.info("Demarrage de ngrok en arriere-plan...")
+        NgrokHelper.start_tunnel_subprocess()
+    else:
+        logger.info("ngrok désactivé (USE_NGROK=false)")
     
     # Lancer Flask
     app.run(
