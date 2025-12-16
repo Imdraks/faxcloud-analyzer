@@ -5,6 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FaxCloud Analyzer - Accueil</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* MENU MOBILE FIXE */
+        .mobile-nav {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: rgba(10, 10, 30, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 0;
+            z-index: 1000;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .mobile-nav a {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            text-decoration: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8rem;
+            flex: 1;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-nav a:hover,
+        .mobile-nav a.active {
+            color: #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .mobile-nav span {
+            font-size: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-nav {
+                display: flex;
+            }
+
+            .header nav {
+                display: none !important;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .mobile-nav {
+                display: none !important;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -113,6 +171,35 @@
             <p>FaxCloud Analyzer v1.0 | Analyse FAX avancée</p>
         </footer>
     </div>
+
+    <!-- MENU MOBILE FIXE -->
+    <nav class="mobile-nav">
+        <a href="/" class="active" data-page="home">
+            <span>🏠</span>
+            <div>Accueil</div>
+        </a>
+        <a href="/reports" data-page="reports">
+            <span>📊</span>
+            <div>Rapports</div>
+        </a>
+    </nav>
+
+    <script>
+        // Script pour le menu mobile
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.mobile-nav a');
+            
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (currentPath === '/' && link.dataset.page === 'home') {
+                    link.classList.add('active');
+                } else if (currentPath === '/reports' && link.dataset.page === 'reports') {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
