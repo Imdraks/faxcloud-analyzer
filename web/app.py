@@ -42,6 +42,70 @@ logger = logging.getLogger(__name__)
 ensure_directories()
 configure_logging()
 
+
+def _sanitize_none(value):
+    if value is None:
+        return None
+    if isinstance(value, str) and value.strip().lower() in {"none", "null", ""}:
+        return None
+    return value
+
+
+def _ensure_report_derived_fields(report_data: dict) -> dict:
+    """Assure la présence des champs SF/RF et pages réelles pour le rendu HTML/JSON."""
+    if not report_data:
+        return report_data
+
+    report_data["contract_id"] = _sanitize_none(report_data.get("contract_id"))
+    report_data["date_debut"] = _sanitize_none(report_data.get("date_debut"))
+    report_data["date_fin"] = _sanitize_none(report_data.get("date_fin"))
+
+    entries = report_data.get("entries") or report_data.get("fax_entries") or []
+
+    pages_sf = 0
+    pages_rf = 0
+    fax_sf = 0
+    fax_rf = 0
+    for e in entries:
+        t = (e.get("type") or "").lower()
+        pages = e.get("pages") or 0
+        try:
+            pages = int(pages)
+        except Exception:
+            pages = 0
+
+        if t == "send":
+            fax_sf += 1
+            pages_sf += pages
+        elif t == "receive":
+            fax_rf += 1
+            pages_rf += pages
+
+    # Toujours exposer ces clés pour le template
+    report_data.setdefault("fax_sf", fax_sf)
+    report_data.setdefault("fax_rf", fax_rf)
+    report_data.setdefault("pages_reelles_sf", pages_sf)
+    report_data.setdefault("pages_reelles_rf", pages_rf)
+    report_data.setdefault("pages_reelles_totales", pages_sf + pages_rf)
+    report_data.setdefault("pages_envoyees", pages_sf)
+    report_data.setdefault("pages_recues", pages_rf)
+
+    # Fallbacks si la DB n'a pas ces colonnes (ou valeurs vides)
+    if report_data.get("fax_envoyes") in (None, ""):
+        report_data["fax_envoyes"] = fax_sf
+    if report_data.get("fax_recus") in (None, ""):
+        report_data["fax_recus"] = fax_rf
+    if report_data.get("pages_totales") in (None, ""):
+        report_data["pages_totales"] = pages_sf + pages_rf
+
+    # Compat: exposer aussi `fax_entries` si uniquement `entries` existe
+    if "fax_entries" not in report_data and "entries" in report_data:
+        report_data["fax_entries"] = report_data["entries"]
+    if "entries" not in report_data and "fax_entries" in report_data:
+        report_data["entries"] = report_data["fax_entries"]
+
+    return report_data
+
 # ═══════════════════════════════════════════════════════════════════════════
 # ROUTES
 # ═══════════════════════════════════════════════════════════════════════════
@@ -72,7 +136,7 @@ def reports():
 def report(report_id):
     """Détail d'un rapport"""
     try:
-        report_data = get_report_by_id(report_id)
+        report_data = _ensure_report_derived_fields(get_report_by_id(report_id))
         if not report_data:
             return render_template('404.html'), 404
         return render_template('report.html', report=report_data)
@@ -140,7 +204,7 @@ def api_reports():
 def api_report(report_id):
     """Détail rapport (JSON)"""
     try:
-        report_data = get_report_by_id(report_id)
+        report_data = _ensure_report_derived_fields(get_report_by_id(report_id))
         if not report_data:
             return jsonify({'error': 'Rapport non trouvé'}), 404
         return jsonify(report_data)

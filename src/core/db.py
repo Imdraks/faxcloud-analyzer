@@ -146,7 +146,15 @@ def get_report_by_id(report_id: str) -> Optional[Dict]:
     entries = [dict(r) for r in cur.fetchall()]
     conn.close()
     report = dict(row)
+    # Compat: certaines routes historiques exposaient `fax_entries`
     report["entries"] = entries
+    report["fax_entries"] = entries
+
+    # Normaliser les valeurs stockées en texte (ex: "None")
+    for key in ("contract_id", "date_debut", "date_fin"):
+        val = report.get(key)
+        if isinstance(val, str) and val.strip().lower() in {"none", "null", ""}:
+            report[key] = None
 
     # Statistiques dérivées depuis les entrées (utile pour afficher pages SF/RF)
     pages_sf = 0
