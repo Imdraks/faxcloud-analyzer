@@ -78,8 +78,7 @@ class FaxDashboard {
 
     async uploadFile(file) {
         try {
-            const sessionId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            console.log('🎯 Upload lancé - sessionId:', sessionId);
+            console.log('🎯 Upload lancé');
             
             // Afficher la barre de progression
             const progressDiv = document.getElementById('uploadProgress');
@@ -87,54 +86,16 @@ class FaxDashboard {
             document.getElementById('progressFill').style.width = '0%';
             document.getElementById('progressText').textContent = '0% - Préparation...';
 
-            // Connexion SSE pour suivre la progression
-            console.log('🔌 Ouverture SSE...');
-            const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
-
-            eventSource.onopen = () => {
-                console.log('✅ SSE connecté');
-            };
-
-            eventSource.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.error) {
-                        console.error('❌ Erreur SSE:', data.error);
-                        return;
-                    }
-                    const percent = data.percent || 0;
-                    const message = data.message || 'Traitement...';
-                    console.log(`📊 Progression: ${percent}% - ${message}`);
-                    
-                    // Mettre à jour la barre
-                    document.getElementById('progressFill').style.width = percent + '%';
-                    document.getElementById('progressText').textContent = `${percent}% - ${message}`;
-                    
-                    if (percent >= 100) {
-                        console.log('✅ SSE à 100%');
-                        eventSource.close();
-                    }
-                } catch (e) {
-                    console.error('❌ Erreur SSE parse:', e);
-                }
-            };
-
-            eventSource.onerror = (error) => {
-                console.error('❌ SSE erreur:', error);
-                eventSource.close();
-            };
-
             // Préparer le formulaire
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('session_id', sessionId);
 
             // Envoyer le fichier
             const xhr = new XMLHttpRequest();
 
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 25);
+                    const percent = Math.round((e.loaded / e.total) * 50);
                     document.getElementById('progressFill').style.width = percent + '%';
                     document.getElementById('progressText').textContent = `${percent}% - Upload du fichier...`;
                 }
@@ -147,9 +108,12 @@ class FaxDashboard {
                         console.log('✅ Upload réussi:', data);
                         
                         if (data.success) {
+                            // Montrer 100%
+                            document.getElementById('progressFill').style.width = '100%';
+                            document.getElementById('progressText').textContent = '100% - Redirection...';
+                            
                             // Succès!
                             this.showMessage('success', `✅ ${data.message}`);
-                            document.getElementById('uploadProgress').classList.add('hidden');
                             document.getElementById('fileInput').value = '';
                             
                             // Mettre à jour l'interface
@@ -160,7 +124,7 @@ class FaxDashboard {
                             console.log('🚀 Redirection vers /report/' + data.report_id);
                             setTimeout(() => {
                                 window.location.href = `/report/${data.report_id}`;
-                            }, 500);
+                            }, 800);
                         } else {
                             this.showMessage('error', `❌ ${data.error || 'Erreur inconnue'}`);
                         }
@@ -170,12 +134,12 @@ class FaxDashboard {
                 } else {
                     this.showMessage('error', `❌ Erreur HTTP ${xhr.status}`);
                 }
-                eventSource.close();
+                document.getElementById('uploadProgress').classList.add('hidden');
             });
 
             xhr.addEventListener('error', () => {
                 this.showMessage('error', '❌ Erreur réseau');
-                eventSource.close();
+                document.getElementById('uploadProgress').classList.add('hidden');
             });
 
             xhr.open('POST', '/api/upload');
