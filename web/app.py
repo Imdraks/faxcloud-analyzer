@@ -31,11 +31,25 @@ from core.cache_service import cache_service
 from core.api_service import api_service, ApiResponse
 from core.validation_service import FILTER_SCHEMA, ValidationError
 
-# Importer les routes v2 API
+# Importer les routes v2 et v3 API
 try:
     from api_v2 import register_api_v2_routes
 except ImportError:
     register_api_v2_routes = None
+
+try:
+    from api_v3 import api_v3
+except ImportError:
+    api_v3 = None
+
+# Importer les nouveaux services
+try:
+    from core.audit_logger import get_audit_logger, audit_api_call
+except ImportError:
+    def audit_api_call(f):
+        return f
+    def get_audit_logger():
+        return None
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION FLASK
@@ -76,14 +90,14 @@ class ProgressTracker:
         self.session_id = session_id
         self.queue = queue.Queue()
         ProgressTracker.progress_sessions[session_id] = self
-        logger.info(f"✅ Tracker créé: {session_id}")
+        logger.info(f"[OK] Tracker created: {session_id}")
     
     def update(self, percent, message=''):
         """Envoyer une mise à jour"""
         try:
             data = {'percent': percent, 'message': message}
             self.queue.put(data)
-            logger.info(f"📊 Progress [{self.session_id}]: {percent}% - {message}")
+            logger.info(f"[PROGRESS] [{self.session_id}]: {percent}% - {message}")
         except Exception as e:
             logger.error(f"Erreur update: {e}")
     
@@ -103,7 +117,7 @@ class ProgressTracker:
                 elapsed += 2
                 # Continuer à attendre
         
-        logger.info(f"🛑 SSE [{self.session_id}]: Arrêt")
+        logger.info(f"[STOP] SSE [{self.session_id}]: Stopped")
     
     def close(self):
         """Fermer la session"""
@@ -111,7 +125,7 @@ class ProgressTracker:
             self.queue.put(None)
             if self.session_id in ProgressTracker.progress_sessions:
                 del ProgressTracker.progress_sessions[self.session_id]
-            logger.info(f"❌ Tracker fermé: {self.session_id}")
+            logger.info(f"[CLOSED] Tracker closed: {self.session_id}")
         except Exception as e:
             logger.error(f"Erreur close: {e}")
 
@@ -150,31 +164,19 @@ def add_ngrok_bypass_header(response):
 
 @app.route('/api/upload-progress/<session_id>', methods=['GET'])
 def api_upload_progress(session_id):
-    """SSE endpoint pour suivre la progression"""
-    logger.info(f"🔗 Client SSE connecté: {session_id}")
-    
-    def generate():
-        if session_id not in ProgressTracker.progress_sessions:
-            logger.warning(f"⚠️ Session introuvable: {session_id}")
-            yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
-            return
-        
-        tracker = ProgressTracker.progress_sessions[session_id]
-        logger.info(f"✅ Tracker trouvé, envoi des mises à jour...")
-        
-        for update in tracker.get_updates():
-            yield update
-    
-    return Response(generate(), mimetype='text/event-stream', headers={
-        'Cache-Control': 'no-cache',
-        'X-Accel-Buffering': 'no',
-        'Connection': 'keep-alive'
-    })
+    """SSE endpoint (désactivé - pas utilisé)"""
+    return Response("data: {}\n\n", mimetype='text/event-stream')
 
 @app.route('/', methods=['GET'])
 def index():
     """Page d'accueil - Dashboard moderne"""
     return render_template('dashboard.html')
+
+
+@app.route('/admin', methods=['GET'])
+def admin_dashboard():
+    """Page dashboard d'administration"""
+    return render_template('admin.html')
 
 
 @app.route('/reports', methods=['GET'])
@@ -809,6 +811,90 @@ if register_api_v2_routes:
         logger.warning(f"Impossible d'enregistrer les routes v2: {e}")
 else:
     logger.warning("Module api_v2 non disponible")
+
+# Enregistrer l'API v3 (Nouvelles features)
+if api_v3:
+    try:
+        app.register_blueprint(api_v3)
+        logger.info("[V3] API v3 routes registered - Advanced features enabled")
+    except Exception as e:
+        logger.warning(f"[V3] Cannot register v3 routes: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MONITORING & METRIQUES
+# ═══════════════════════════════════════════════════════════════════════════
+
+try:
+    from core.metrics import get_metrics_collector, get_rate_limiter
+    metrics = get_metrics_collector()
+    rate_limiter = get_rate_limiter()
+    metrics_available = True
+except ImportError:
+    metrics_available = False
+    logger.warning("[METRICS] Metrics module not available")
+
+@app.route('/api/admin/metrics', methods=['GET'])
+def admin_metrics():
+    """Dashboard des metriques systeme"""
+    try:
+        if not metrics_available:
+            return jsonify({'error': 'Metrics not available'}), 503
+        
+        return jsonify({
+            'system': metrics.get_system_metrics(),
+            'uptime': {
+                'seconds': metrics.get_uptime(),
+                'formatted': f"{metrics.get_uptime() / 3600:.1f}h"
+            },
+            'metrics_summary': metrics.get_metrics_summary(),
+            'rate_limiter_stats': rate_limiter.get_stats(),
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        logger.error(f"Metrics error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/health/detailed', methods=['GET'])
+def health_detailed():
+    """Verification detaillee de la sante du systeme"""
+    try:
+        db = get_db()
+        db.initialize()
+        
+        # Test de la base de donnees
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM reports")
+        report_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM reports_entries")
+        entries_count = cursor.fetchone()[0]
+        cursor.close()
+        conn.close()
+        
+        cache_stats = cache_service.get_stats() if cache_service else {}
+        sys_metrics = metrics.get_system_metrics() if metrics_available else {}
+        rl_stats = rate_limiter.get_stats() if metrics_available else {}
+        
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'database': {
+                'status': 'connected',
+                'reports': report_count,
+                'entries': entries_count
+            },
+            'system': sys_metrics,
+            'cache_stats': cache_stats,
+            'api_rate_limits': rl_stats
+        }), 200
+    except Exception as e:
+        logger.error(f"Health check error: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 500
 
 # ═══════════════════════════════════════════════════════════════════════════
 # LANCEMENT

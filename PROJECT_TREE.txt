@@ -1,0 +1,123 @@
+FaxCloud Analyzer v3.0
+====================
+
+STRUCTURE PROPRE ET ORGANISÉE
+=============================
+
+faxcloud-analyzer/
+│
+├── 🚀 DÉMARRAGE & CONFIG
+│   ├── run.py                 ← Point d'entrée principal
+│   ├── start.bat              ← Script Windows automatisé
+│   ├── requirements.txt        ← Dépendances Python
+│   ├── .env                    ← Configuration (gitignored)
+│   └── .env.example            ← Exemple de config
+│
+├── 📂 APP - Application Flask
+│   ├── __init__.py             ← Factory Flask (create_app)
+│   ├── routes.py               ← Toutes les routes (web + api)
+│   │
+│   ├── api/                    ← API v3 (À développer)
+│   │   └── __init__.py
+│   │
+│   ├── models/                 ← Modèles BD (À développer)
+│   │   └── __init__.py
+│   │
+│   ├── utils/                  ← Utilitaires (À développer)
+│   │   └── __init__.py
+│   │
+│   ├── templates/              ← Pages HTML
+│   │   ├── dashboard-v2.html   ✅ Moderne
+│   │   ├── reports-v2.html     ✅ Moderne
+│   │   ├── report-v2.html      ✅ Moderne
+│   │   ├── admin.html          ✅ Moderne
+│   │   ├── 404.html            ✅
+│   │   └── 500.html            ✅
+│   │
+│   └── static/                 ← CSS & JS
+│       ├── css/
+│       │   └── style.css
+│       └── js/
+│           ├── app.js
+│           └── report.js
+│
+├── ⚙️ CONFIG - Configuration
+│   ├── __init__.py
+│   └── settings.py             ← Variables centralisées
+│
+├── 🛠️ SCRIPTS - Scripts utilitaires
+│   ├── init_db.py              ← Initialisation BD
+│   └── cli.py                  ← CLI commands (À développer)
+│
+├── 🧪 TESTS - Tests unitaires
+│   └── (À remplir)
+│
+├── 📚 DOCS - Documentation
+│   ├── ARCHITECTURE.md         ✅ Vue d'ensemble
+│   ├── INSTALLATION.md         ← À créer
+│   └── API.md                  ← À créer
+│
+├── 📊 DATA - Données
+│   ├── uploads/                ← Fichiers uploadés
+│   └── database/               ← BD locale (optional)
+│
+├── 📝 LOGS - Fichiers logs
+│   └── app.log                 ← Logs application
+│
+└── 📖 DOCUMENTATION
+    ├── README_CLEAN.md         ✅ README principal
+    ├── QUICKSTART.md           ✅ Guide rapide
+    ├── STRUCTURE.md            ✅ Structure explicite
+    ├── .gitignore              ✅ Git ignore
+    └── .git/                   ✅ Repository
+
+═════════════════════════════════════════════════════════
+
+✅ COMPLÉTÉ
+═══════════
+- Structure dossiers organisée
+- Configuration centralisée
+- Routes web et API prêtes
+- Templates modernes intégrées
+- Logging configuré
+- Documentation complète
+- Scripts de démarrage
+- Code clean et maintenable
+
+⏳ À DÉVELOPPER
+════════════════
+- API v3 endpoints complets
+- Modèles SQLAlchemy
+- Upload et importation fichiers
+- Intégration MySQL complète
+- Authentification
+- Tests unitaires
+- Cache et optimisations
+
+🎯 PROCHAINES ÉTAPES
+═════════════════════
+1. Développer app/api/ → endpoints
+2. Créer app/models/ → ORM
+3. Implémenter upload → app/utils/
+4. Tests unitaires → tests/
+5. Documentation API → docs/API.md
+
+════════════════════════════════════════════════════════
+
+COMMANDES CLÉS
+══════════════
+Windows:   start.bat  ou  python run.py
+Linux/Mac: python run.py
+
+URLS D'ACCÈS
+════════════
+Dashboard: http://127.0.0.1:5000
+Admin:     http://127.0.0.1:5000/admin
+Rapports:  http://127.0.0.1:5000/reports
+API Health: http://127.0.0.1:5000/api/health
+
+════════════════════════════════════════════════════════
+Version: 3.0 Clean
+Status: ✅ Opérationnel
+Dernière mise à jour: Décembre 2025
+════════════════════════════════════════════════════════
