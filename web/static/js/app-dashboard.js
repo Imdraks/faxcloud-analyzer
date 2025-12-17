@@ -79,21 +79,16 @@ class FaxDashboard {
     async uploadFile(file) {
         try {
             const sessionId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            const progressDiv = document.getElementById('uploadProgress');
-            progressDiv.classList.remove('hidden');
-
-            console.log('🎯 Début upload, sessionId:', sessionId);
+            console.log('🎯 Upload lancé - sessionId:', sessionId);
             
             // Afficher la barre de progression
             const progressDiv = document.getElementById('uploadProgress');
             progressDiv.classList.remove('hidden');
-
-            // Réinitialiser la barre
             document.getElementById('progressFill').style.width = '0%';
-            document.getElementById('progressText').textContent = '0% - Initialisation...';
+            document.getElementById('progressText').textContent = '0% - Préparation...';
 
-            // Connexion SSE
-            console.log('🔌 Connexion SSE...');
+            // Connexion SSE pour suivre la progression
+            console.log('🔌 Ouverture SSE...');
             const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
 
             eventSource.onopen = () => {
@@ -103,101 +98,94 @@ class FaxDashboard {
             eventSource.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('📊 Message SSE reçu:', data);
-                    
                     if (data.error) {
                         console.error('❌ Erreur SSE:', data.error);
                         return;
                     }
-                    
                     const percent = data.percent || 0;
-                    const message = data.message || '';
+                    const message = data.message || 'Traitement...';
+                    console.log(`📊 Progression: ${percent}% - ${message}`);
                     
-                    // Mettre à jour l'affichage
+                    // Mettre à jour la barre
                     document.getElementById('progressFill').style.width = percent + '%';
                     document.getElementById('progressText').textContent = `${percent}% - ${message}`;
                     
                     if (percent >= 100) {
-                        console.log('✅ Upload à 100%, fermeture SSE');
+                        console.log('✅ SSE à 100%');
                         eventSource.close();
                     }
                 } catch (e) {
-                    console.error('❌ Erreur parse:', e);
+                    console.error('❌ Erreur SSE parse:', e);
                 }
             };
 
             eventSource.onerror = (error) => {
-                console.error('❌ Erreur SSE:', error);
-                eventSource.close();
-            };
-                    console.error('Erreur SSE:', e);
-                }
-            };
-
-            eventSource.onerror = () => {
-                console.error('Erreur SSE connection');
+                console.error('❌ SSE erreur:', error);
                 eventSource.close();
             };
 
-            // Préparer et envoyer le formulaire
+            // Préparer le formulaire
             const formData = new FormData();
             formData.append('file', file);
             formData.append('session_id', sessionId);
 
-            return new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
+            // Envoyer le fichier
+            const xhr = new XMLHttpRequest();
 
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        const percentComplete = Math.round((e.loaded / e.total) * 30);
-                        document.getElementById('progressFill').style.width = percentComplete + '%';
-                        document.getElementById('progressText').textContent = `${percentComplete}% - Upload du fichier`;
-                    }
-                });
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 25);
+                    document.getElementById('progressFill').style.width = percent + '%';
+                    document.getElementById('progressText').textContent = `${percent}% - Upload du fichier...`;
+                }
+            });
 
-                xhr.addEventListener('load', () => {
-                    if (xhr.status === 200) {
-                        try {
-                            const data = JSON.parse(xhr.responseText);
-                            console.log('Response data:', data);
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        console.log('✅ Upload réussi:', data);
+                        
+                        if (data.success) {
+                            // Succès!
+                            this.showMessage('success', `✅ ${data.message}`);
+                            document.getElementById('uploadProgress').classList.add('hidden');
+                            document.getElementById('fileInput').value = '';
                             
-                            if (data.success) {
-                                // Afficher succès et attendre 1 seconde
-                                this.showMessage('success', `✅ ${data.message}`);
-                                document.getElementById('uploadProgress').classList.add('hidden');
-                                document.getElementById('fileInput').value = '';
-                                
-                                // Mettre à jour les stats
-                                this.loadStats();
-                                this.loadReports();
-                                
-                                // Redirection vers le rapport après 1 seconde
-                                setTimeout(() => {
-                                    console.log('Redirection vers:', `/report/${data.report_id}`);
-                                    if (data.report_id) {
-                                        window.location.href = `/report/${data.report_id}`;
-                                    } else {
-                                        console.error('Pas de report_id dans la réponse!');
-                                    }
-                                }, 1000);
-                            } else {
-                                this.showMessage('error', `❌ Erreur: ${data.error}`);
-                                eventSource.close();
-                            }
-                        } catch (e) {
-                            this.showMessage('error', `❌ Erreur: ${e.message}`);
-                            eventSource.close();
+                            // Mettre à jour l'interface
+                            this.loadStats();
+                            this.loadReports();
+                            
+                            // REDIRECTION DIRECTE VERS LE RAPPORT
+                            console.log('🚀 Redirection vers /report/' + data.report_id);
+                            setTimeout(() => {
+                                window.location.href = `/report/${data.report_id}`;
+                            }, 500);
+                        } else {
+                            this.showMessage('error', `❌ ${data.error || 'Erreur inconnue'}`);
                         }
-                        resolve();
-                    } else {
-                        reject(new Error(`HTTP ${xhr.status}`));
-                        eventSource.close();
+                    } catch (e) {
+                        this.showMessage('error', `❌ Erreur: ${e.message}`);
                     }
-                });
+                } else {
+                    this.showMessage('error', `❌ Erreur HTTP ${xhr.status}`);
+                }
+                eventSource.close();
+            });
 
-                xhr.addEventListener('error', () => {
-                    reject(new Error('Erreur réseau'));
-                    eventSource.close();
+            xhr.addEventListener('error', () => {
+                this.showMessage('error', '❌ Erreur réseau');
+                eventSource.close();
+            });
+
+            xhr.open('POST', '/api/upload');
+            xhr.send(formData);
+
+        } catch (error) {
+            console.error('❌ Erreur upload:', error);
+            this.showMessage('error', `❌ ${error.message}`);
+        }
+    }
                 });
 
                 xhr.open('POST', '/api/upload', true);

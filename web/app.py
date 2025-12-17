@@ -342,7 +342,7 @@ def api_upload():
                         percent = 60 + (idx / len(entries)) * 30 if len(entries) > 0 else 60
                         percent = min(int(percent), 89)  # Max 89% avant finalisation
                         message = f'{saved_count}/{len(entries)} FAX insérés'
-                        tracker.update(percent, 'Insertion des FAX', message)
+                        tracker.update(percent, message)
                 except Exception as e:
                     logger.warning(f"Erreur sauvegarde entrée: {e}")
             
@@ -350,11 +350,11 @@ def api_upload():
             
             # Mise à jour finale avant finalisation
             if tracker:
-                tracker.update(89, 'Insertion des FAX', f'{saved_count}/{len(entries)} FAX insérés')
+                tracker.update(89, f'{saved_count}/{len(entries)} FAX insérés')
             
             # 90-95%: Ajouter une entrée dans analysis_history
             if tracker:
-                tracker.update(90, 'Finalisation', 'Enregistrement de l\'analyse...')
+                tracker.update(90, 'Finalisation - Enregistrement...')
             
             try:
                 analysis_id = str(uuid4())
@@ -392,7 +392,7 @@ def api_upload():
         
         # 95-100%: Finalisation
         if tracker:
-            tracker.update(100, 'Terminé!', 'Import terminé avec succès')
+            tracker.update(100, 'Terminé - Import réussi')
             tracker.close()
         
         return jsonify({
