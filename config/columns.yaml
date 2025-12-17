@@ -1,0 +1,9 @@
+aliases:
+  sent_at: ["sent_at", "date", "datetime", "time", "timestamp"]
+  recipient: ["recipient", "to", "numero", "destinataire"]
+  sender: ["sender", "from", "expediteur"]
+  status: ["status", "statut", "state", "result"]
+  status_code: ["status_code", "code_statut"]
+  error_code: ["error_code", "erreur", "code_erreur"]
+  pages: ["pages", "nb_pages"]
+  duration_seconds: ["duration_seconds", "duree", "duration"]

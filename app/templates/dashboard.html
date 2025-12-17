@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Rapports récents</h1>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Fichier</th>
+            <th>Total</th>
+            <th>Succès</th>
+            <th>Taux</th>
+            <th>QR</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in reports %}
+        <tr>
+            <td>{{ item.report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td><a href="/dashboard/reports/{{ item.report.id }}">{{ item.report.filename }}</a></td>
+            <td>{{ item.stats.total_transmissions or 0 }}</td>
+            <td>{{ item.stats.success_count or 0 }}</td>
+            <td>{{ item.stats.success_rate or 0 }}%</td>
+            <td><a href="/r/{{ item.report.public_token }}">Ouvrir</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

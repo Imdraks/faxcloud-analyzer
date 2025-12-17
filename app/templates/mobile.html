@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport rapide</title>
+    <link rel="stylesheet" href="/static/css/mobile.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Rapport Fax</h1>
+        <p>{{ report.filename }}</p>
+        <div class="kpis">
+            <div class="kpi"><p>Total</p><strong>{{ stats.total_transmissions or 0 }}</strong></div>
+            <div class="kpi"><p>Succès</p><strong>{{ stats.success_count or 0 }}</strong></div>
+            <div class="kpi"><p>Échecs</p><strong>{{ stats.failed_count or 0 }}</strong></div>
+            <div class="kpi"><p>Taux</p><strong>{{ stats.success_rate or 0 }}%</strong></div>
+        </div>
+        <section>
+            <h3>Top erreurs</h3>
+            <ul>
+                {% for code,count in stats.top_error_codes or [] %}
+                <li>{{ code }} — {{ count }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+        <section>
+            <h3>Statuts</h3>
+            <ul>
+                {% for status,count in stats.status_breakdown.items() %}
+                <li>{{ status }} : {{ count }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+        <p class="muted">Importé le {{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+</body>
+</html>

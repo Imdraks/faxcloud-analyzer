@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Détail rapport</h1>
+<div class="grid">
+    <div class="card">
+        <p>Total</p>
+        <h2>{{ stats.total_transmissions or 0 }}</h2>
+    </div>
+    <div class="card">
+        <p>Succès</p>
+        <h2>{{ stats.success_count or 0 }}</h2>
+    </div>
+    <div class="card">
+        <p>Échecs</p>
+        <h2>{{ stats.failed_count or 0 }}</h2>
+    </div>
+    <div class="card">
+        <p>Taux</p>
+        <h2>{{ stats.success_rate or 0 }}%</h2>
+    </div>
+</div>
+
+<section>
+    <h3>Top erreurs</h3>
+    <ul>
+        {% for code,count in stats.top_error_codes or [] %}
+        <li>{{ code }} — {{ count }}</li>
+        {% endfor %}
+    </ul>
+</section>
+
+<section>
+    <h3>Breakdown statuts</h3>
+    <table class="table">
+        <thead><tr><th>Status</th><th>Count</th></tr></thead>
+        <tbody>
+        {% for status,count in stats.status_breakdown.items() %}
+            <tr><td>{{ status }}</td><td>{{ count }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h3>QR & Liens</h3>
+    <p><a href="/q/{{ report.public_token }}.png" target="_blank">QR code</a> | <a href="/r/{{ report.public_token }}">Vue mobile</a> | <a href="/api/reports/{{ report.id }}/download">Télécharger l'original</a></p>
+</section>
+
+<section>
+    <h3>Transmissions (aperçu)</h3>
+    <table class="table">
+        <thead>
+            <tr><th>Date</th><th>Dest.</th><th>Status</th><th>Erreur</th><th>Pages</th></tr>
+        </thead>
+        <tbody>
+        {% for t in transmissions %}
+            <tr>
+                <td>{{ t.sent_at }}</td>
+                <td>{{ t.recipient }}</td>
+                <td>{{ t.status }}</td>
+                <td>{{ t.error_code or '-' }}</td>
+                <td>{{ t.pages or '-' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

@@ -17,7 +17,7 @@ from core.config import Config
 from core.importer import FileImporter
 from core.analyzer import FaxAnalyzer
 from core.reporter import ReportGenerator
-from core import validation_rules
+from core.db import Database
 
 # ═══════════════════════════════════════════════════════════════════════════
 # INITIALISATION
@@ -61,14 +61,27 @@ def process_export(
         
         logger.info("\n📥 ÉTAPE 1: IMPORTATION")
         logger.info("-" * 70)
-        
-        importer = FaxCloudImporter()
-        rows, import_info = importer.import_file(file_path)
-        
-        logger.info(f"✓ Fichier importé: {import_info['file_name']}")
-        logger.info(f"  • Format: {import_info['format']}")
-        logger.info(f"  • Lignes: {import_info['total_rows']}")
-        logger.info(f"  • Taille: {import_info['file_size'] / 1024:.2f} KB")
+
+        importer = FileImporter()
+        import_result = importer.import_file(file_path)
+
+        if not import_result.get("success"):
+            message = ", ".join(import_result.get("errors", [])) or "Importation impossible"
+            logger.error(f"✗ Erreur d'import: {message}")
+            return {
+                "success": False,
+                "message": message,
+                "step": "import"
+            }
+
+        rows = import_result.get("data", [])
+        metadata = import_result.get("metadata", {})
+        file_size_kb = Path(file_path).stat().st_size / 1024 if Path(file_path).exists() else 0
+
+        logger.info(f"✓ Fichier importé: {metadata.get('file', Path(file_path).name)}")
+        logger.info(f"  • Format: {metadata.get('format', 'inconnu')}")
+        logger.info(f"  • Lignes: {metadata.get('rows', len(rows))}")
+        logger.info(f"  • Taille: {file_size_kb:.2f} KB")
         
         # ─────────────────────────────────────────────────────────────────
         # ÉTAPE 2: ANALYSE
@@ -84,7 +97,9 @@ def process_export(
             date_debut,
             date_fin
         )
-        
+        analysis["fichier_source"] = metadata.get("file", Path(file_path).name)
+        analysis["metadata"] = metadata
+
         stats = analysis['statistics']
         logger.info(f"✓ Analyse complète:")
         logger.info(f"  • Total FAX: {stats['total_fax']}")
@@ -102,9 +117,6 @@ def process_export(
         
         db = Database()
         reporter = ReportGenerator(db=db)
-        
-        # Ajouter le chemin source au rapport
-        analysis['fichier_source'] = file_path
         
         report = reporter.generate_report(analysis)
         

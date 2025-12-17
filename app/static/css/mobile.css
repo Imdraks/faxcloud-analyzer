@@ -1,0 +1,12 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0;
+    background: #0f172a;
+    color: #f8fafc;
+}
+.container { padding: 20px; }
+h1 { margin-bottom: 4px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 10px; }
+.kpi { background: #111827; border-radius: 10px; padding: 12px; }
+section { margin-top: 16px; background: #111827; border-radius: 10px; padding: 12px; }
+.muted { color: #94a3b8; font-size: 12px; }
