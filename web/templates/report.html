@@ -152,6 +152,39 @@
             <section class="section">
                 <h3>📋 Détails</h3>
                 
+                <!-- RECHERCHE & ACTIONS -->
+                <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                    <div style="flex: 1; min-width: 250px;">
+                        <input type="text" id="searchInput" placeholder="🔍 Chercher par FAX, utilisateur, numéro..." 
+                               style="width: 100%; padding: 0.75rem 1rem; background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(59, 130, 246, 0.3); border-radius: 8px; color: var(--text); font-size: 0.9rem;">
+                    </div>
+                    <button id="exportBtn" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.1)); border: 2px solid rgba(16, 185, 129, 0.5); border-radius: 8px; color: var(--text); cursor: pointer; font-weight: 600; transition: all 0.2s ease;">
+                        📥 Exporter CSV
+                    </button>
+                </div>
+
+                <!-- STATS DU FILTRE -->
+                <div id="filterStats" style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 8px; border-left: 4px solid rgba(59, 130, 246, 0.5); display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div>
+                            <p style="color: var(--text-light); font-size: 0.85rem; margin-bottom: 0.25rem;">Total</p>
+                            <p style="color: var(--primary); font-weight: 700; font-size: 1.25rem;" id="statTotal">0</p>
+                        </div>
+                        <div>
+                            <p style="color: var(--text-light); font-size: 0.85rem; margin-bottom: 0.25rem;">Succès</p>
+                            <p style="color: var(--success); font-weight: 700; font-size: 1.25rem;" id="statSuccess">0</p>
+                        </div>
+                        <div>
+                            <p style="color: var(--text-light); font-size: 0.85rem; margin-bottom: 0.25rem;">Erreurs</p>
+                            <p style="color: var(--error); font-weight: 700; font-size: 1.25rem;" id="statErrors">0</p>
+                        </div>
+                        <div>
+                            <p style="color: var(--text-light); font-size: 0.85rem; margin-bottom: 0.25rem;">% Succès</p>
+                            <p style="color: var(--success); font-weight: 700; font-size: 1.25rem;" id="statSuccessRate">0%</p>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- FILTRES -->
                 <div style="margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap;">
                     <button class="filter-btn" id="filterAll" data-filter="all">

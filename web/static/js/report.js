@@ -10,6 +10,7 @@ class ReportApp {
         this.currentFilter = 'all';
         this.currentPage = 1;
         this.entriesPerPage = 20;
+        this.searchQuery = '';
     }
 
     // Helper pour les requêtes fetch avec header ngrok
@@ -43,6 +44,28 @@ class ReportApp {
                 this.setFilter(e.target.closest('.filter-btn').dataset.filter);
             });
         });
+
+        // Listener pour la recherche avec debounce
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            let searchTimeout;
+            searchInput.addEventListener('input', (e) => {
+                this.searchQuery = e.target.value;
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    this.currentPage = 1;  // Réinitialiser à la page 1
+                    this.displayFilteredEntries();
+                }, 300);
+            });
+        }
+
+        // Listener pour l'export CSV
+        const exportBtn = document.getElementById('exportBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                this.exportToCSV();
+            });
+        }
     }
 
     async loadReportData() {
@@ -118,11 +141,26 @@ class ReportApp {
             filteredEntries = this.allEntries.filter(e => e.valide === 0);
         }
 
+        // Appliquer la recherche
+        if (this.searchQuery.trim()) {
+            const query = this.searchQuery.toLowerCase();
+            filteredEntries = filteredEntries.filter(e => 
+                (e.fax_id && e.fax_id.toLowerCase().includes(query)) ||
+                (e.utilisateur && e.utilisateur.toLowerCase().includes(query)) ||
+                (e.numero_normalise && e.numero_normalise.toLowerCase().includes(query)) ||
+                (e.numero_original && e.numero_original.toLowerCase().includes(query))
+            );
+        }
+
         if (!filteredEntries || filteredEntries.length === 0) {
             detailsDiv.innerHTML = '<p class="text-muted">Aucune entrée disponible</p>';
             document.getElementById('paginationContainer').style.display = 'none';
+            document.getElementById('filterStats').style.display = 'none';
             return;
         }
+
+        // Calculer les statistiques du filtre
+        this.updateFilterStats(filteredEntries);
 
         // Calculer la pagination
         const totalPages = Math.ceil(filteredEntries.length / this.entriesPerPage);
@@ -176,6 +214,19 @@ class ReportApp {
 
         // Afficher et mettre à jour la pagination
         this.updatePagination(totalPages, filteredEntries.length);
+    }
+
+    updateFilterStats(filteredEntries) {
+        const total = filteredEntries.length;
+        const success = filteredEntries.filter(e => e.valide === 1).length;
+        const errors = filteredEntries.filter(e => e.valide === 0).length;
+        const successRate = total > 0 ? ((success / total) * 100).toFixed(1) : 0;
+
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statSuccess').textContent = success;
+        document.getElementById('statErrors').textContent = errors;
+        document.getElementById('statSuccessRate').textContent = successRate + '%';
+        document.getElementById('filterStats').style.display = 'grid';
     }
 
     updatePagination(totalPages, totalEntries) {
@@ -278,6 +329,77 @@ class ReportApp {
 
     downloadPdf() {
         window.location.href = `/api/report/${this.reportId}/pdf`;
+    }
+
+    exportToCSV() {
+        // Récupérer les entrées filtrées et recherchées
+        let filteredEntries = this.allEntries;
+
+        // Appliquer le filtre
+        if (this.currentFilter === 'sent') {
+            filteredEntries = this.allEntries.filter(e => e.mode === 'SF');
+        } else if (this.currentFilter === 'received') {
+            filteredEntries = this.allEntries.filter(e => e.mode === 'RF');
+        } else if (this.currentFilter === 'error') {
+            filteredEntries = this.allEntries.filter(e => e.valide === 0);
+        }
+
+        // Appliquer la recherche
+        if (this.searchQuery.trim()) {
+            const query = this.searchQuery.toLowerCase();
+            filteredEntries = filteredEntries.filter(e => 
+                (e.fax_id && e.fax_id.toLowerCase().includes(query)) ||
+                (e.utilisateur && e.utilisateur.toLowerCase().includes(query)) ||
+                (e.numero_normalise && e.numero_normalise.toLowerCase().includes(query)) ||
+                (e.numero_original && e.numero_original.toLowerCase().includes(query))
+            );
+        }
+
+        if (!filteredEntries.length) {
+            alert('Aucune donnée à exporter');
+            return;
+        }
+
+        // En-têtes CSV
+        const headers = ['ID FAX', 'Utilisateur', 'Date', 'Mode', 'Numéro', 'Pages', 'État', 'Erreurs'];
+        
+        // Construire les lignes CSV
+        let csv = headers.join(',') + '\n';
+        filteredEntries.forEach(entry => {
+            const row = [
+                this.escapeCSV(entry.fax_id || ''),
+                this.escapeCSV(entry.utilisateur || ''),
+                entry.date_heure ? new Date(entry.date_heure).toLocaleString('fr-FR') : '',
+                entry.mode === 'SF' ? 'Envoyé' : entry.mode === 'RF' ? 'Reçu' : entry.mode || '',
+                this.escapeCSV(entry.numero_normalise || entry.numero_original || ''),
+                entry.pages || '',
+                entry.valide === 1 ? 'Succès' : 'Erreur',
+                this.escapeCSV(entry.erreurs ? (typeof entry.erreurs === 'string' ? entry.erreurs : JSON.stringify(entry.erreurs)) : '')
+            ];
+            csv += row.join(',') + '\n';
+        });
+
+        // Créer le fichier et le télécharger
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', `rapport_${this.reportId}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    escapeCSV(str) {
+        if (!str) return '';
+        str = String(str);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
     }
 }
 
