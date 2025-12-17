@@ -8,6 +8,6 @@ echo Demarrage du serveur FaxCloud Analyzer
 echo http://127.0.0.1:%PORT%
 echo CTRL+C pour arreter
 
-python web/app.py %PORT%
+python -m src.server --port %PORT%
 
 endlocal

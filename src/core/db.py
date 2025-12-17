@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .config import settings, ensure_directories
 
@@ -134,6 +134,121 @@ def get_all_reports() -> List[Dict]:
     return [dict(row) for row in rows]
 
 
+def _normalize_report_text_fields(report: Dict) -> Dict:
+    for key in ("contract_id", "date_debut", "date_fin"):
+        val = report.get(key)
+        if isinstance(val, str) and val.strip().lower() in {"none", "null", ""}:
+            report[key] = None
+    return report
+
+
+def get_report_summary_by_id(report_id: str) -> Optional[Dict]:
+    """Retourne un rapport sans les entrées (rapide pour affichage/API).
+
+    Ajoute aussi des stats dérivées SF/RF/pages réelles via agrégats SQL.
+    """
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM reports WHERE id = ?", (report_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+
+    # Agrégats type/pages sans charger toutes les entrées
+    cur.execute(
+        """
+        SELECT type, COUNT(*) AS cnt, COALESCE(SUM(pages), 0) AS pages
+        FROM fax_entries
+        WHERE report_id = ?
+        GROUP BY type
+        """,
+        (report_id,),
+    )
+    agg = cur.fetchall()
+
+    cur.execute(
+        "SELECT COUNT(*) AS total FROM fax_entries WHERE report_id = ?",
+        (report_id,),
+    )
+    entries_total = int(cur.fetchone()["total"])
+
+    conn.close()
+
+    report = dict(row)
+    _normalize_report_text_fields(report)
+
+    fax_sf = 0
+    fax_rf = 0
+    pages_sf = 0
+    pages_rf = 0
+    for r in agg:
+        t = (r["type"] or "").lower()
+        if t == "send":
+            fax_sf = int(r["cnt"])
+            pages_sf = int(r["pages"])
+        elif t == "receive":
+            fax_rf = int(r["cnt"])
+            pages_rf = int(r["pages"])
+
+    report["fax_sf"] = fax_sf
+    report["fax_rf"] = fax_rf
+    report["pages_reelles_sf"] = pages_sf
+    report["pages_reelles_rf"] = pages_rf
+    report["pages_reelles_totales"] = pages_sf + pages_rf
+    report["pages_envoyees"] = pages_sf
+    report["pages_recues"] = pages_rf
+    report["entries_total"] = entries_total
+
+    # Compat avec champs existants
+    if report.get("fax_envoyes") in (None, ""):
+        report["fax_envoyes"] = fax_sf
+    if report.get("fax_recus") in (None, ""):
+        report["fax_recus"] = fax_rf
+    if report.get("pages_totales") in (None, ""):
+        report["pages_totales"] = pages_sf + pages_rf
+
+    return report
+
+
+def get_report_entries(report_id: str, offset: int = 0, limit: int = 200) -> Tuple[List[Dict], int]:
+    """Retourne une page d'entrées + le total d'entrées pour un rapport."""
+    offset = max(0, int(offset))
+    limit = max(1, min(2000, int(limit)))
+
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(*) AS total FROM fax_entries WHERE report_id = ?",
+        (report_id,),
+    )
+    total = int(cur.fetchone()["total"])
+
+    cur.execute(
+        """
+        SELECT id, report_id, fax_id, utilisateur, type,
+               numero_original, numero_normalise, valide, pages, datetime, erreurs
+        FROM fax_entries
+        WHERE report_id = ?
+        ORDER BY datetime ASC
+        LIMIT ? OFFSET ?
+        """,
+        (report_id, limit, offset),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows, total
+
+
+def delete_report(report_id: str) -> None:
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM fax_entries WHERE report_id = ?", (report_id,))
+    cur.execute("DELETE FROM reports WHERE id = ?", (report_id,))
+    conn.commit()
+    conn.close()
+
+
 def get_report_by_id(report_id: str) -> Optional[Dict]:
     conn = _connect()
     cur = conn.cursor()
@@ -150,11 +265,7 @@ def get_report_by_id(report_id: str) -> Optional[Dict]:
     report["entries"] = entries
     report["fax_entries"] = entries
 
-    # Normaliser les valeurs stockées en texte (ex: "None")
-    for key in ("contract_id", "date_debut", "date_fin"):
-        val = report.get(key)
-        if isinstance(val, str) and val.strip().lower() in {"none", "null", ""}:
-            report[key] = None
+    _normalize_report_text_fields(report)
 
     # Statistiques dérivées depuis les entrées (utile pour afficher pages SF/RF)
     pages_sf = 0
