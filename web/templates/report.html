@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
+    <div class="container" data-report-id="{{ report.id }}">
         <header class="header">
             <h1>📊 FaxCloud Analyzer</h1>
             <p>Détail d'un rapport</p>
@@ -65,6 +65,35 @@
                 {% endif %}
 
                 <div style="margin-top: 2rem;">
+                    <h3>📄 Entrées (paginé)</h3>
+                    <p class="text-muted">Pour éviter de charger 25k lignes d'un coup, on affiche par pages.</p>
+
+                    <div class="actions-row">
+                        <a class="btn" href="/api/report/{{ report.id }}/export.csv">Télécharger CSV</a>
+                        <a class="btn" href="/api/report/{{ report.id }}/export.json">Télécharger JSON</a>
+                        <button id="loadMoreBtn" class="btn" type="button">Charger plus</button>
+                    </div>
+
+                    <p id="entriesStatus" class="text-muted" style="margin-top: 0.75rem;"></p>
+
+                    <div class="table-wrap" style="margin-top: 1rem;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date/Heure</th>
+                                    <th>Type</th>
+                                    <th>Pages</th>
+                                    <th>Utilisateur</th>
+                                    <th>Numéro</th>
+                                    <th>Valide</th>
+                                </tr>
+                            </thead>
+                            <tbody id="entriesTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div style="margin-top: 2rem;">
                     <a href="/reports" class="btn">← Retour</a>
                 </div>
             </section>
@@ -74,5 +103,7 @@
             <p>FaxCloud Analyzer v1.0</p>
         </footer>
     </div>
+
+    <script src="{{ url_for('static', filename='js/report.js') }}"></script>
 </body>
 </html>
