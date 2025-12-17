@@ -104,43 +104,6 @@ pip --version
 # Résultat attendu: pip 21.0+
 ```
 
----
-
-## 🔐 Authentification (optionnelle)
-
-Par défaut, l'application fonctionne en mode "démo" (pas de login). Pour un usage en entreprise, vous pouvez activer une authentification simple par session.
-
-### Scénario 1 — "comme un logiciel" sur un seul poste
-
-Si l'application tourne uniquement sur le PC de l'utilisateur (accès via `http://127.0.0.1:PORT`), **vous pouvez laisser l'authentification désactivée** (ne pas définir `ADMIN_PASSWORD`).
-
-Recommandation dans ce scénario:
-- écouter uniquement sur `127.0.0.1` (localhost)
-- ne pas exposer le port sur le réseau
-
-### Activer l'auth
-
-Définissez ces variables d'environnement avant de lancer le serveur web:
-
-- `ADMIN_USERNAME` (défaut: `admin`)
-- `ADMIN_PASSWORD` (obligatoire pour activer l'auth)
-- `FLASK_SECRET_KEY` (recommandé en production, sinon les sessions ne survivent pas aux redémarrages)
-
-Exemple PowerShell:
-
-```powershell
-$env:ADMIN_USERNAME = "admin"
-$env:ADMIN_PASSWORD = "ChangeMe_123!"
-$env:FLASK_SECRET_KEY = "une-cle-longue-et-stable"
-python -m src.server --port 5000
-```
-
-Quand l'auth est active:
-- accès non authentifié → redirection vers `/login` (pages)
-- appels non authentifiés → HTTP 401 (API)
-
----
-
 ## 🧾 Journal d'audit (traçabilité)
 
 Une table SQLite `audit_log` enregistre automatiquement des événements (best-effort):

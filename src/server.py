@@ -4,26 +4,12 @@ import argparse
 import csv
 import io
 import logging
-import os
 from pathlib import Path
 import hashlib
-import secrets
-from functools import wraps
 
 from werkzeug.utils import secure_filename
 
-from flask import (
-    Flask,
-    Response,
-    abort,
-    jsonify,
-    redirect,
-    render_template,
-    request,
-    send_file,
-    session,
-    url_for,
-)
+from flask import Flask, Response, abort, jsonify, render_template, request, send_file
 
 from src.core import (
     analyze_data,
@@ -123,73 +109,12 @@ def create_app() -> Flask:
         static_url_path="/static",
     )
 
-    # Auth (optionnelle): activée seulement si ADMIN_PASSWORD est défini.
-    # Cela permet un mode "démo" sans friction et un mode "entreprise" sécurisé.
-    app.config["ADMIN_USERNAME"] = os.environ.get("ADMIN_USERNAME", "admin")
-    app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD")
-    app.config["AUTH_ENABLED"] = bool(app.config["ADMIN_PASSWORD"])
-
-    secret_key = os.environ.get("FLASK_SECRET_KEY")
-    if not secret_key:
-        # Session volatile si la clé n'est pas fournie (OK en local, déconseillé en prod).
-        secret_key = secrets.token_hex(32)
-        logger.warning("FLASK_SECRET_KEY non défini: sessions non persistantes entre redémarrages")
-    app.secret_key = secret_key
-
     app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
     app.config["UPLOAD_FOLDER"] = str(settings.imports_dir)
 
     def _current_user() -> str:
-        return str(session.get("user") or "anonymous")
-
-    def _auth_required_for_request() -> bool:
-        if not app.config.get("AUTH_ENABLED"):
-            return False
-
-        path = request.path or ""
-        if path.startswith("/static/"):
-            return False
-        if path in {"/health", "/login", "/logout"}:
-            return False
-        return True
-
-    def _unauthorized_response():
-        if (request.path or "").startswith("/api/"):
-            return jsonify({"error": "Authentification requise"}), 401
-        nxt = request.full_path if request.query_string else request.path
-        return redirect(url_for("login", next=nxt))
-
-    @app.before_request
-    def _enforce_auth():
-        if not _auth_required_for_request():
-            return None
-        if session.get("user"):
-            return None
-        return _unauthorized_response()
-
-    @app.route("/login", methods=["GET", "POST"])
-    def login():
-        # Si l'auth n'est pas activée, on redirige directement.
-        if not app.config.get("AUTH_ENABLED"):
-            return redirect(url_for("index"))
-
-        error = None
-        if request.method == "POST":
-            username = (request.form.get("username") or "").strip()
-            password = request.form.get("password") or ""
-
-            if username == app.config["ADMIN_USERNAME"] and password == app.config["ADMIN_PASSWORD"]:
-                session["user"] = username
-                next_url = request.args.get("next") or url_for("index")
-                return redirect(next_url)
-            error = "Identifiants invalides"
-
-        return render_template("login.html", error=error, auth_enabled=app.config.get("AUTH_ENABLED"))
-
-    @app.route("/logout", methods=["GET"])
-    def logout():
-        session.clear()
-        return redirect(url_for("index"))
+        # Auth retirée: on garde un champ user pour l'audit (valeur par défaut).
+        return "local"
 
     @app.route("/health")
     def health() -> tuple[dict, int]:

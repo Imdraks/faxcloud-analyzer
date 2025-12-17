@@ -15,12 +15,6 @@ echo Demarrage du serveur FaxCloud Analyzer
 echo http://127.0.0.1:%PORT%
 echo CTRL+C pour arreter
 
-if "%ADMIN_PASSWORD%"=="" (
-	echo Auth: DESACTIVEE ^(mode demo^) - definir ADMIN_PASSWORD pour activer /login
-) else (
-	echo Auth: ACTIVEE - connexion via http://127.0.0.1:%PORT%/login
-)
-
 if not "%OPEN_BROWSER%"=="" (
 	echo Ouverture du navigateur...
 	start "" "http://127.0.0.1:%PORT%/"
