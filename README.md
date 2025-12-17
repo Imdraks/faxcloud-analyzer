@@ -226,6 +226,15 @@ Affiche les détails complets d'un rapport.
 python main.py --help
 ```
 
+#### 6. Lancer le serveur web (localhost:5000)
+```bash
+python main.py serve --host 0.0.0.0 --port 5000
+```
+Servez l’interface statique `web/` et exposez des endpoints JSON:
+- `GET /health` — statut du service
+- `GET /reports` — liste des rapports en base SQLite
+- `GET /reports/<report_id>` — détail d’un rapport
+
 ---
 
 ## 🔄 Étapes de fonctionnement
@@ -329,7 +338,7 @@ type data\reports\2c37d596-509f-4cf8-b74f-3248248e7b5d.json
                     ┌───────────▼──────────────┐
                     │  1️⃣ IMPORTER (importer.py)│
                     │                          │
-                    │ • Détecte format CSV/XLS│
+                    │ • Détecte format CSV/XLS │
                     │ • Teste UTF-8, Latin-1  │
                     │ • Essaie séparateur ; , │
                     │ • Normalise colonnes    │

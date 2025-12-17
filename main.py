@@ -1,316 +1,120 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-FaxCloud Analyzer - Point d'entrée principal
-Orchestration du workflow complet: Import → Analyse → Rapport
-"""
+from __future__ import annotations
 
-import sys
-import logging
 import argparse
+import json
+import logging
 from pathlib import Path
 
-# Ajouter src au chemin Python
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+from src.core import (
+    analyze_data,
+    generate_report,
+    get_all_reports,
+    get_report_by_id,
+    import_faxcloud_export,
+    init_database,
+    insert_report_to_db,
+    list_report_files,
+)
+from src.core.config import configure_logging, ensure_directories
+from src.server import create_app
 
-from core.config import Config
-from core.importer import FileImporter
-from core.analyzer import FaxAnalyzer
-from core.reporter import ReportGenerator
-from core import validation_rules
 
-# ═══════════════════════════════════════════════════════════════════════════
-# INITIALISATION
-# ═══════════════════════════════════════════════════════════════════════════
+def cmd_init(args: argparse.Namespace) -> None:
+    ensure_directories()
+    init_database()
+    print("✓ Répertoires et base de données initialisés")
 
-Config.ensure_directories()
-Config.setup_logging()
-logger = Config.get_logger(__name__)
 
-# ═══════════════════════════════════════════════════════════════════════════
-# FONCTIONS PRINCIPALES
-# ═══════════════════════════════════════════════════════════════════════════
+def cmd_import(args: argparse.Namespace) -> None:
+    ensure_directories()
+    init_database()
+    rows = import_faxcloud_export(args.file)
+    analysis = analyze_data(rows, args.contract, args.start, args.end)
+    report = generate_report(analysis, include_qr=not args.no_qr)
+    insert_report_to_db(report["report_id"], report, report.get("qr_path"))
+    print(f"✓ Rapport généré: {report['report_id']}")
 
-def process_export(
-    file_path: str,
-    contract_id: str = None,
-    date_debut: str = None,
-    date_fin: str = None
-) -> dict:
-    """
-    Traite un export FaxCloud complet
-    PHASE 1: Import → PHASE 2: Analyse → PHASE 3: Rapport
-    
-    Args:
-        file_path: Chemin du fichier CSV/XLSX
-        contract_id: ID du contrat (optionnel)
-        date_debut: Date de début YYYY-MM-DD (optionnel)
-        date_fin: Date de fin YYYY-MM-DD (optionnel)
-    
-    Returns:
-        dict: {success, report_id, message, ...}
-    """
-    try:
-        logger.info("=" * 70)
-        logger.info(f"TRAITEMENT EXPORT: {contract_id} ({date_debut} à {date_fin})")
-        logger.info("=" * 70)
-        
-        # ─────────────────────────────────────────────────────────────────
-        # ÉTAPE 1: IMPORTATION
-        # ─────────────────────────────────────────────────────────────────
-        
-        logger.info("\n📥 ÉTAPE 1: IMPORTATION")
-        logger.info("-" * 70)
-        
-        importer = FaxCloudImporter()
-        rows, import_info = importer.import_file(file_path)
-        
-        logger.info(f"✓ Fichier importé: {import_info['file_name']}")
-        logger.info(f"  • Format: {import_info['format']}")
-        logger.info(f"  • Lignes: {import_info['total_rows']}")
-        logger.info(f"  • Taille: {import_info['file_size'] / 1024:.2f} KB")
-        
-        # ─────────────────────────────────────────────────────────────────
-        # ÉTAPE 2: ANALYSE
-        # ─────────────────────────────────────────────────────────────────
-        
-        logger.info("\n📊 ÉTAPE 2: ANALYSE")
-        logger.info("-" * 70)
-        
-        analyzer = FaxAnalyzer()
-        analysis = analyzer.analyze_data(
-            rows,
-            contract_id,
-            date_debut,
-            date_fin
-        )
-        
-        stats = analysis['statistics']
-        logger.info(f"✓ Analyse complète:")
-        logger.info(f"  • Total FAX: {stats['total_fax']}")
-        logger.info(f"  • Envoyés: {stats['fax_envoyes']}, Reçus: {stats['fax_recus']}")
-        logger.info(f"  • Pages: {stats['pages_totales']}")
-        logger.info(f"  • Erreurs: {stats['erreurs_totales']}")
-        logger.info(f"  • Taux réussite: {stats['taux_reussite']:.2f}%")
-        
-        # ─────────────────────────────────────────────────────────────────
-        # ÉTAPE 3: RAPPORT ET QR CODE
-        # ─────────────────────────────────────────────────────────────────
-        
-        logger.info("\n📝 ÉTAPE 3: RAPPORT ET QR CODE")
-        logger.info("-" * 70)
-        
-        db = Database()
-        reporter = ReportGenerator(db=db)
-        
-        # Ajouter le chemin source au rapport
-        analysis['fichier_source'] = file_path
-        
-        report = reporter.generate_report(analysis)
-        
-        if not report['success']:
-            logger.error(f"✗ Erreur génération rapport: {report['message']}")
-            return {
-                "success": False,
-                "message": report['message'],
-                "step": "reporter"
-            }
-        
-        logger.info(f"✓ {report['message']}")
-        logger.info(f"  • ID: {report['rapport_id']}")
-        logger.info(f"  • URL: {report['report_url']}")
-        if report['qr_path']:
-            logger.info(f"  • QR Code: {report['qr_path']}")
-        
-        # ─────────────────────────────────────────────────────────────────
-        # ÉTAPE 4: AFFICHER LE RÉSUMÉ
-        # ─────────────────────────────────────────────────────────────────
-        
-        logger.info("\n📋 RÉSUMÉ")
-        logger.info("-" * 70)
-        
-        report_json = reporter.load_report_json(report['rapport_id'])
-        if report_json:
-            summary = reporter.generate_summary(report_json)
-            logger.info(summary)
-        
-        logger.info("=" * 70)
-        logger.info("✅ TRAITEMENT RÉUSSI")
-        logger.info("=" * 70)
-        
-        return {
-            "success": True,
-            "message": "Traitement réussi",
-            "rapport_id": report['rapport_id'],
-            "report_url": report['report_url'],
-            "qr_path": report['qr_path']
-        }
-    
-    except Exception as e:
-        logger.error(f"❌ Erreur lors du traitement: {e}", exc_info=True)
-        return {
-            "success": False,
-            "message": str(e),
-            "error": str(e)
-        }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CLI
-# ═══════════════════════════════════════════════════════════════════════════
-
-def main():
-    """Point d'entrée principal"""
-    
-    parser = argparse.ArgumentParser(
-        description="FaxCloud Analyzer - Analyse automatique des exports FaxCloud",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Exemples:
-  python main.py init
-  python main.py import --file data.csv --contract "CLIENT_001" --start 2024-01-01 --end 2024-12-31
-  python main.py list
-  python main.py view --report-id <uuid>
-        """
-    )
-    
-    parser.add_argument(
-        "command",
-        choices=["import", "list", "view", "init"],
-        help="Commande à exécuter"
-    )
-    
-    parser.add_argument(
-        "--file",
-        help="Chemin du fichier à importer",
-        default=None
-    )
-    
-    parser.add_argument(
-        "--contract",
-        help="ID du contrat",
-        default="CONTRACT_001"
-    )
-    
-    parser.add_argument(
-        "--start",
-        help="Date de début (YYYY-MM-DD)",
-        default="2024-01-01"
-    )
-    
-    parser.add_argument(
-        "--end",
-        help="Date de fin (YYYY-MM-DD)",
-        default="2024-12-31"
-    )
-    
-    parser.add_argument(
-        "--report-id",
-        help="ID du rapport à consulter",
-        default=None
-    )
-    
-    args = parser.parse_args()
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # COMMANDE: init
-    # ─────────────────────────────────────────────────────────────────────
-    
-    if args.command == "init":
-        logger.info("Initialisation du projet...")
-        try:
-            Config.ensure_directories()
-            db = Database()
-            db.initialize()
-            logger.info("✅ Projet initialisé avec succès")
-            logger.info(f"   Base de données: {Config.DATABASE_CONFIG['path']}")
-        except Exception as e:
-            logger.error(f"❌ Erreur initialisation: {e}")
-            sys.exit(1)
+def cmd_list(args: argparse.Namespace) -> None:
+    init_database()
+    reports = get_all_reports()
+    if not reports:
+        print("Aucun rapport en base.")
         return
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # COMMANDE: import
-    # ─────────────────────────────────────────────────────────────────────
-    
-    elif args.command == "import":
-        if not args.file:
-            logger.error("❌ --file requis pour la commande 'import'")
-            sys.exit(1)
-        
-        result = process_export(
-            args.file,
-            args.contract,
-            args.start,
-            args.end
+    for rpt in reports:
+        print(
+            f"{rpt['id']} | contrat={rpt['contract_id']} "
+            f"période={rpt['date_debut']}->{rpt['date_fin']} "
+            f"fax={rpt['total_fax']} erreurs={rpt['erreurs_totales']} "
+            f"taux={rpt['taux_reussite']}%"
         )
-        
-        if result["success"]:
-            logger.info(f"\n✅ Rapport généré: {result['rapport_id']}")
-            sys.exit(0)
-        else:
-            logger.error(f"\n❌ Erreur: {result['message']}")
-            sys.exit(1)
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # COMMANDE: list
-    # ─────────────────────────────────────────────────────────────────────
-    
-    elif args.command == "list":
-        logger.info("📋 Liste des rapports")
-        logger.info("-" * 70)
-        
-        reporter = ReportGenerator()
-        reports = reporter.list_reports()
-        
-        if not reports:
-            logger.info("Aucun rapport trouvé")
-        else:
-            logger.info(f"Total: {len(reports)} rapport(s)\n")
-            
-            for idx, report in enumerate(reports, 1):
-                logger.info(f"{idx}. {report['id']}")
-                logger.info(f"   Contrat: {report['contract_id']}")
-                logger.info(f"   Généré: {report['timestamp']}")
-                logger.info(f"   FAX: {report['total_fax']} "
-                           f"(Erreurs: {report['erreurs']}, "
-                           f"Réussite: {report['taux_reussite']:.1f}%)")
-                logger.info("")
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # COMMANDE: view
-    # ─────────────────────────────────────────────────────────────────────
-    
-    elif args.command == "view":
-        if not args.report_id:
-            logger.error("❌ --report-id requis pour la commande 'view'")
-            sys.exit(1)
-        
-        logger.info(f"📖 Affichage rapport: {args.report_id}")
-        logger.info("-" * 70)
-        
-        reporter = ReportGenerator()
-        report_json = reporter.load_report_json(args.report_id)
-        
-        if not report_json:
-            logger.error(f"Rapport non trouvé: {args.report_id}")
-            sys.exit(1)
-        
-        summary = reporter.generate_summary(report_json)
-        logger.info(summary)
-        
-        # Afficher aussi les entrées avec erreurs
-        errors = [e for e in report_json['entries'] if not e['valide']]
-        if errors:
-            logger.info("\n⚠️  ENTRÉES AVEC ERREURS:\n")
-            for entry in errors[:20]:  # Limiter à 20 pour la lisibilité
-                logger.info(f"  • {entry['fax_id']} ({entry['utilisateur']})")
-                logger.info(f"    Numéro: {entry['numero_original']}")
-                logger.info(f"    Erreurs: {', '.join(entry['erreurs'])}\n")
-            
-            if len(errors) > 20:
-                logger.info(f"  ... et {len(errors) - 20} autres erreurs")
 
-# ═══════════════════════════════════════════════════════════════════════════
+
+def cmd_view(args: argparse.Namespace) -> None:
+    report_id = args.report_id
+    path = Path(report_id)
+    if path.exists():
+        print(path.read_text(encoding="utf-8"))
+        return
+
+    data = get_report_by_id(report_id)
+    if not data:
+        print(f"Rapport introuvable: {report_id}")
+        return
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def cmd_reports_dir(args: argparse.Namespace) -> None:
+    for path in list_report_files():
+        print(path)
+
+
+def cmd_serve(args: argparse.Namespace) -> None:
+    app = create_app()
+    host = args.host
+    port = args.port
+    app.run(host=host, port=port)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="FaxCloud Analyzer CLI")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_init = sub.add_parser("init", help="Initialiser la base et les répertoires")
+    p_init.set_defaults(func=cmd_init)
+
+    p_import = sub.add_parser("import", help="Importer un fichier CSV/XLSX")
+    p_import.add_argument("--file", required=True, help="Chemin du fichier à importer")
+    p_import.add_argument("--contract", default=None, help="Identifiant contrat")
+    p_import.add_argument("--start", dest="start", default=None, help="Date début (YYYY-MM-DD)")
+    p_import.add_argument("--end", dest="end", default=None, help="Date fin (YYYY-MM-DD)")
+    p_import.add_argument("--no-qr", action="store_true", help="Ne pas générer de QR code")
+    p_import.set_defaults(func=cmd_import)
+
+    p_list = sub.add_parser("list", help="Lister les rapports en base")
+    p_list.set_defaults(func=cmd_list)
+
+    p_view = sub.add_parser("view", help="Afficher un rapport (fichier ou base)")
+    p_view.add_argument("--report-id", required=True, help="UUID de rapport ou chemin JSON")
+    p_view.set_defaults(func=cmd_view)
+
+    p_reports_dir = sub.add_parser("reports-dir", help="Lister les fichiers rapport JSON")
+    p_reports_dir.set_defaults(func=cmd_reports_dir)
+
+    p_serve = sub.add_parser("serve", help="Lancer le serveur web (Flask) pour consulter les rapports")
+    p_serve.add_argument("--host", default="0.0.0.0", help="Adresse d'écoute (défaut: 0.0.0.0)")
+    p_serve.add_argument("--port", type=int, default=5000, help="Port HTTP (défaut: 5000)")
+    p_serve.set_defaults(func=cmd_serve)
+
+    return parser
+
+
+def main() -> None:
+    configure_logging(logging.INFO)
+    parser = build_parser()
+    args = parser.parse_args()
+    args.func(args)
+
 
 if __name__ == "__main__":
     main()
