@@ -8,6 +8,22 @@ class FaxApp {
         this.init();
     }
 
+    formatNumber(value) {
+        const num = Number(value) || 0;
+        return num.toLocaleString('fr-FR');
+    }
+
+    formatPercent(value) {
+        const num = Number(value) || 0;
+        return `${num.toFixed(1)}%`;
+    }
+
+    setTextContent(id, value, { isPercent = false } = {}) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = isPercent ? this.formatPercent(value) : this.formatNumber(value);
+    }
+
     // Helper pour les requêtes fetch avec header ngrok
     async fetchWithNgrokHeader(url, options = {}) {
         const headers = options.headers || {};
@@ -39,7 +55,10 @@ class FaxApp {
         });
 
         // Clear button
-        document.getElementById('clearBtn').addEventListener('click', () => this.clearData());
+        const clearBtn = document.getElementById('clearBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearData());
+        }
     }
 
     handleFileSelect(file) {
@@ -109,10 +128,30 @@ class FaxApp {
             const response = await this.fetchWithNgrokHeader('/api/stats');
             const stats = await response.json();
 
-            document.getElementById('totalFax').textContent = stats.total || 0;
-            document.getElementById('sentFax').textContent = stats.sent || 0;
-            document.getElementById('receivedFax').textContent = stats.received || 0;
-            document.getElementById('errorFax').textContent = stats.errors || 0;
+            const mapped = {
+                totalFax: stats.total_fax ?? stats.total ?? 0,
+                totalReports: stats.total_reports ?? stats.sent ?? 0,
+                errors: stats.total_errors ?? stats.errors ?? 0,
+                clients: stats.unique_clients ?? stats.received ?? 0,
+                successRate: stats.avg_success_rate ?? stats.success_rate ?? 0
+            };
+
+            const avgPerReport = mapped.totalReports > 0
+                ? Math.round(mapped.totalFax / mapped.totalReports)
+                : 0;
+
+            this.setTextContent('totalFax', mapped.totalFax);
+            this.setTextContent('totalReports', mapped.totalReports);
+            this.setTextContent('errorFax', mapped.errors);
+            this.setTextContent('uniqueClients', mapped.clients);
+            this.setTextContent('successRate', mapped.successRate, { isPercent: true });
+
+            this.setTextContent('recapTotal', mapped.totalFax);
+            this.setTextContent('recapErrors', mapped.errors);
+            this.setTextContent('recapClients', mapped.clients);
+            this.setTextContent('recapSuccess', mapped.successRate, { isPercent: true });
+            this.setTextContent('newReports', mapped.totalReports);
+            this.setTextContent('avgReports', avgPerReport);
         } catch (error) {
             console.error('Erreur stats:', error);
         }
