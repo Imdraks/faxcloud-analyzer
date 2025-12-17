@@ -85,9 +85,17 @@ class FaxDashboard {
             // Mise à jour visuelle initiale
             document.getElementById('progressFill').style.width = '0%';
             document.getElementById('progressText').textContent = '0% - Initialisation...';
+            console.log('🎯 Upload lancé, sessionId:', sessionId);
 
             // Connexion SSE pour suivre la progression EN TEMPS RÉEL
-            const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
+            const sseUrl = `/api/upload-progress/${sessionId}`;
+            console.log('🔌 Connexion SSE à:', sseUrl);
+            const eventSource = new EventSource(sseUrl);
+            let lastSSEPercent = 0;  // Tracker du dernier pourcentage SSE
+
+            eventSource.onopen = () => {
+                console.log('✅ SSE Connexion établie');
+            };
 
             eventSource.onmessage = (event) => {
                 try {
@@ -95,6 +103,10 @@ class FaxDashboard {
                     const percent = data.percent || 0;
                     const step = data.step || 'Traitement';
                     const message = data.message || '';
+
+                    // Log pour debugging
+                    console.log(`📊 SSE Update: ${percent}% - ${step} - ${message}`);
+                    lastSSEPercent = percent;
 
                     // Animation de la barre
                     document.getElementById('progressFill').style.width = percent + '%';
@@ -108,11 +120,21 @@ class FaxDashboard {
 
                     // Fermer quand terminé
                     if (percent >= 100) {
+                        console.log('✅ Upload terminé, fermeture SSE');
                         setTimeout(() => {
                             eventSource.close();
                         }, 500);
                     }
                 } catch (e) {
+                    console.error('❌ Erreur parsing SSE:', e);
+                }
+            };
+
+            eventSource.onerror = (error) => {
+                console.error('❌ Erreur SSE:', error);
+                console.error('État SSE:', eventSource.readyState);
+                eventSource.close();
+            };
                     console.error('Erreur SSE:', e);
                 }
             };

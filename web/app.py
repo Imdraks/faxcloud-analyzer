@@ -65,9 +65,6 @@ logger = Config.get_logger(__name__)
 # SYSTÈME DE PROGRESSION POUR UPLOADS (SSE - Server-Sent Events)
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Dict pour stocker les sessions de progression actives
-progress_sessions = {}
-
 class ProgressTracker:
     """Tracker pour envoyer les mises à jour de progression via SSE"""
     progress_sessions = {}  # Dictionnaire de classe pour stocker les sessions
@@ -93,17 +90,21 @@ class ProgressTracker:
             try:
                 data = self.queue.get(timeout=30)
                 if data is None:  # Signal d'arrêt
+                    logger.info(f"SSE [{self.session_id}]: Fermeture")
                     break
-                yield f"data: {json.dumps(data)}\n\n"
+                json_data = json.dumps(data)
+                logger.info(f"SSE [{self.session_id}]: Envoi {data.get('percent')}% - {data.get('step')}")
+                yield f"data: {json_data}\n\n"
             except queue.Empty:
                 # Timeout = session terminée
+                logger.info(f"SSE [{self.session_id}]: Timeout")
                 break
     
     def close(self):
         """Fermer la session"""
         self.queue.put(None)
-        if self.session_id in progress_sessions:
-            del progress_sessions[self.session_id]
+        if self.session_id in ProgressTracker.progress_sessions:
+            del ProgressTracker.progress_sessions[self.session_id]
 
 # Initialiser la base de données
 db = None
@@ -142,11 +143,11 @@ def add_ngrok_bypass_header(response):
 def api_upload_progress(session_id):
     """SSE endpoint pour suivre la progression de l'upload"""
     def generate():
-        if session_id not in progress_sessions:
+        if session_id not in ProgressTracker.progress_sessions:
             yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
             return
         
-        tracker = progress_sessions[session_id]
+        tracker = ProgressTracker.progress_sessions[session_id]
         for update in tracker.get_updates():
             yield update
     
