@@ -59,6 +59,9 @@ class ReportApp {
         document.getElementById('reportDate').textContent = `Date: ${report.date}`;
         document.getElementById('reportSummary').textContent = report.summary;
 
+        // Stocker toutes les entrées
+        this.allEntries = report.entries || [];
+
         // Remplir les statistiques
         document.getElementById('statTotal').textContent = report.total || 0;
         document.getElementById('statSent').textContent = report.sent || 0;
@@ -68,9 +71,10 @@ class ReportApp {
         // Afficher le taux de réussite
         const successRate = report.success_rate || 0;
         document.getElementById('statSuccessRate').textContent = successRate.toFixed(2) + '%';
-
-        // Stocker toutes les entrées
-        this.allEntries = report.entries || [];
+        
+        // Afficher les pages SF et RF depuis le serveur
+        document.getElementById('statPagesSF').textContent = report.pages_sf || 0;
+        document.getElementById('statPagesRF').textContent = report.pages_rf || 0;
         
         // Afficher avec le filtre par défaut
         this.setFilter('all');
@@ -120,6 +124,7 @@ class ReportApp {
                         <th>Mode</th>
                         <th>Numéro</th>
                         <th>Pages</th>
+                        <th>Pages SF/RF</th>
                         <th>État</th>
                         <th>Erreurs</th>
                     </tr>
@@ -132,6 +137,14 @@ class ReportApp {
             const statusColor = entry.valide === 1 ? '#10b981' : '#ef4444';
             const mode = entry.mode === 'SF' ? 'Envoyé' : entry.mode === 'RF' ? 'Reçu' : entry.mode;
             
+            // Compter les pages SF et RF
+            const pagesSF = filteredEntries
+                .filter(e => e.mode === 'SF')
+                .reduce((sum, e) => sum + (e.pages || 0), 0);
+            const pagesRF = filteredEntries
+                .filter(e => e.mode === 'RF')
+                .reduce((sum, e) => sum + (e.pages || 0), 0);
+            
             html += `
                 <tr>
                     <td>${entry.fax_id || '-'}</td>
@@ -140,6 +153,7 @@ class ReportApp {
                     <td>${mode}</td>
                     <td>${entry.numero_normalise || entry.numero_original || '-'}</td>
                     <td>${entry.pages || '-'}</td>
+                    <td>${pagesSF} / ${pagesRF}</td>
                     <td><span style="color: ${statusColor}; font-weight: bold;">${status}</span></td>
                     <td>${entry.erreurs || '-'}</td>
                 </tr>

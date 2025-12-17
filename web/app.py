@@ -42,12 +42,20 @@ Config.setup_logging()
 logger = Config.get_logger(__name__)
 
 # Initialiser la base de données
-try:
-    db = DatabaseMySQL()
-    db.initialize()
-    logger.info("Base de donnees initialisee")
-except Exception as e:
-    logger.error(f"Erreur BD: {e}")
+db = None
+
+def get_db():
+    """Récupère ou initialise la base de données"""
+    global db
+    if db is None:
+        try:
+            db = DatabaseMySQL()
+            db.initialize()
+            logger.info("Base de donnees initialisee")
+        except Exception as e:
+            logger.error(f"Erreur BD: {e}")
+            return None
+    return db
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ROUTES PRINCIPALES
@@ -57,7 +65,8 @@ except Exception as e:
 def index():
     """Page d'accueil - Import CSV"""
     try:
-        stats = db.get_stats()
+        db_conn = get_db()
+        stats = db_conn.get_stats() if db_conn else {}
         return render_template('index.html', stats=stats)
     except Exception as e:
         logger.error(f"Erreur index: {e}")
@@ -68,7 +77,8 @@ def index():
 def reports():
     """Page liste des rapports"""
     try:
-        reports_list = db.get_reports_list()
+        db_conn = get_db()
+        reports_list = db_conn.get_reports_list() if db_conn else []
         return render_template('reports.html', reports=reports_list)
     except Exception as e:
         logger.error(f"Erreur reports: {e}")
@@ -79,7 +89,10 @@ def reports():
 def report(report_id):
     """Page détail d'un rapport"""
     try:
-        report_data = db.get_report(report_id)
+        db_conn = get_db()
+        if db_conn is None:
+            return render_template('500.html'), 500
+        report_data = db_conn.get_report(report_id)
         if not report_data:
             return render_template('404.html'), 404
         return render_template('report.html', report=report_data, report_id=report_id)
@@ -125,9 +138,13 @@ def api_upload():
             from uuid import uuid4
             import json
             
+            db_conn = get_db()
+            if db_conn is None:
+                return jsonify({'success': False, 'error': 'Base de données indisponible'}), 503
+            
             # Créer un rapport d'import
             report_id = 'import_' + str(uuid4())[:12]
-            conn = db.get_connection()
+            conn = db_conn.get_connection()
             cursor = conn.cursor()
             
             # Calculer les stats avant d'insérer
@@ -136,7 +153,11 @@ def api_upload():
             fax_recus = sum(1 for e in entries if e.get('mode') == 'RF')
             erreurs_totales = sum(1 for e in entries if e.get('erreurs'))
             taux_reussite = ((total_fax - erreurs_totales) / total_fax * 100) if total_fax > 0 else 0.0
-            pages_totales = sum(e.get('pages_reelles', 0) for e in entries if isinstance(e.get('pages_reelles'), (int, float)))
+            pages_totales = sum(e.get('pages', 0) or 0 for e in entries if isinstance(e.get('pages'), (int, float)))
+            pages_sf = sum(e.get('pages', 0) or 0 for e in entries if e.get('mode') == 'SF')
+            pages_rf = sum(e.get('pages', 0) or 0 for e in entries if e.get('mode') == 'RF')
+            
+            logger.info(f"Import: {total_fax} FAX, SF={fax_envoyes} ({pages_sf} pages), RF={fax_recus} ({pages_rf} pages)")
             
             # Insérer le rapport
             cursor.execute("""
@@ -154,11 +175,12 @@ def api_upload():
                 datetime.now().date(),
                 filename,
                 total_fax,
-                fax_envoyes, fax_recus, pages_totales, 0, 0,
+                fax_envoyes, fax_recus, pages_totales, pages_sf, pages_rf,
                 erreurs_totales, taux_reussite,
                 json.dumps({'import': True, 'stats': {
                     'total': total_fax, 'sent': fax_envoyes, 'received': fax_recus,
-                    'errors': erreurs_totales, 'success_rate': taux_reussite
+                    'errors': erreurs_totales, 'success_rate': taux_reussite,
+                    'pages_sf': pages_sf, 'pages_rf': pages_rf
                 }})
             ))
             
@@ -177,15 +199,15 @@ def api_upload():
                     """, (
                         entry_id,
                         report_id,
-                        entry.get('fax_id'),
-                        entry.get('utilisateur'),
-                        entry.get('mode'),
-                        entry.get('datetime'),
-                        entry.get('numero_envoi'),
-                        entry.get('numero_appele'),
-                        entry.get('pages_reelles'),
+                        entry.get('fax_id') or '-',
+                        entry.get('utilisateur') or 'N/A',
+                        entry.get('mode') or '-',
+                        entry.get('date_heure'),
+                        entry.get('numero_envoi') or '-',
+                        entry.get('numero') or '-',
+                        entry.get('pages') or 0,
                         1,  # valide
-                        ''  # pas d'erreurs
+                        entry.get('erreurs', '')  # erreurs
                     ))
                     saved_count += 1
                 except Exception as e:
@@ -254,7 +276,10 @@ def api_upload():
 def api_stats():
     """Récupérer les statistiques globales"""
     try:
-        stats = db.get_stats()
+        db_conn = get_db()
+        if db_conn is None:
+            return jsonify({'total': 0, 'sent': 0, 'received': 0, 'errors': 0})
+        stats = db_conn.get_stats()
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Erreur stats: {e}")
@@ -265,13 +290,17 @@ def api_stats():
 def api_entries():
     """Récupérer les entrées avec pagination"""
     try:
+        db_conn = get_db()
+        if db_conn is None:
+            return jsonify({'entries': [], 'total': 0, 'page': 1, 'limit': 100})
+        
         filter_type = request.args.get('filter', 'all')
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 100))
         
         offset = (page - 1) * limit
-        entries = db.get_entries(limit=limit, offset=offset, filter_type=filter_type)
-        total = db.count_entries(filter_type=filter_type)
+        entries = db_conn.get_entries(limit=limit, offset=offset, filter_type=filter_type)
+        total = db_conn.count_entries(filter_type=filter_type)
         
         return jsonify({
             'entries': entries,
@@ -289,7 +318,11 @@ def api_entries():
 def api_report_data(report_id):
     """Récupérer les données complètes d'un rapport"""
     try:
-        conn = db.get_connection()
+        db_conn = get_db()
+        if db_conn is None:
+            return jsonify({'error': 'Base de données indisponible'}), 503
+            
+        conn = db_conn.get_connection()
         cursor = conn.cursor(dictionary=True)
         
         # Récupérer le rapport
@@ -326,6 +359,12 @@ def api_report_data(report_id):
         errors = report['erreurs_totales']
         success_rate = report['taux_reussite']
         
+        # Calculer les pages SF et RF
+        pages_sf = sum(e['pages'] or 0 for e in entries if e['mode'] == 'SF')
+        pages_rf = sum(e['pages'] or 0 for e in entries if e['mode'] == 'RF')
+        
+        logger.info(f"Rapport {report_id}: {len(entries)} entrées, SF={pages_sf}, RF={pages_rf}")
+        
         return jsonify({
             'id': report['id'],
             'title': f"Rapport - {report['fichier_source']}",
@@ -336,6 +375,8 @@ def api_report_data(report_id):
             'received': received,
             'errors': errors,
             'success_rate': success_rate,
+            'pages_sf': pages_sf,
+            'pages_rf': pages_rf,
             'entries_count': len(entries),
             'entries': entries
         })
@@ -401,7 +442,10 @@ def api_report_pdf(report_id):
         report_data = response.get_json()
         
         # Générer le PDF
-        generator = ReportGenerator(db)
+        db_conn = get_db()
+        if db_conn is None:
+            return jsonify({'error': 'Base de données indisponible'}), 503
+        generator = ReportGenerator(db_conn)
         pdf_bytes = generator.generate_pdf_report(report_data)
         
         return send_file(
@@ -419,7 +463,10 @@ def api_report_pdf(report_id):
 def api_clear():
     """Effacer toutes les données"""
     try:
-        db.clear_all()
+        db_conn = get_db()
+        if db_conn is None:
+            return jsonify({'success': False, 'error': 'Base de données indisponible'}), 503
+        db_conn.clear_all()
         return jsonify({'success': True, 'message': 'Données effacées'})
     except Exception as e:
         logger.error(f"Erreur clear: {e}")
@@ -459,6 +506,6 @@ if __name__ == '__main__':
     app.run(
         host='127.0.0.1',
         port=5000,
-        debug=False,
+        debug=True,
         use_reloader=False
     )

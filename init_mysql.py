@@ -9,12 +9,12 @@ import logging
 from pathlib import Path
 
 # Ajouter src au chemin Python
-sys.path.insert(0, str(Path(__file__).parent / 'src' / 'core'))
+sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 # Importer les modules
 try:
-    import config
-    import db
+    from core.config import Config
+    from core.db_mysql import DatabaseMySQL
 except ImportError as e:
     print(f"❌ Erreur d'import: {e}")
     print("Assurez-vous que vous êtes dans le répertoire du projet")
@@ -35,6 +35,7 @@ def test_mysql_connection():
     print("="*60)
     
     try:
+        db = DatabaseMySQL()
         conn = db.get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT VERSION()")
@@ -46,9 +47,6 @@ def test_mysql_connection():
         return True
     except Exception as e:
         print(f"❌ Erreur connexion MySQL: {e}")
-        print(f"   Hôte: {config.MYSQL_CONFIG['host']}")
-        print(f"   Port: {config.MYSQL_CONFIG['port']}")
-        print(f"   Utilisateur: {config.MYSQL_CONFIG['user']}")
         return False
 
 def init_mysql():
@@ -57,17 +55,11 @@ def init_mysql():
     print("🗄️  Initialisation de la base de données MySQL")
     print("="*60)
     
-    print(f"\n📋 Configuration:")
-    print(f"   Hôte: {config.MYSQL_CONFIG['host']}")
-    print(f"   Port: {config.MYSQL_CONFIG['port']}")
-    print(f"   Utilisateur: {config.MYSQL_CONFIG['user']}")
-    print(f"   Base de données: {config.MYSQL_CONFIG['database']}")
-    
     try:
-        db.init_database()
+        db = DatabaseMySQL()
+        db.initialize()
         print(f"\n✅ Base de données initialisée avec succès!")
-        print(f"   - Base créée: {config.MYSQL_CONFIG['database']}")
-        print(f"   - Tables créées: reports, fax_entries")
+        print(f"   - Tables créées: reports, fax_entries, analysis_history")
         return True
     except Exception as e:
         print(f"\n❌ Erreur initialisation: {e}")
@@ -80,14 +72,15 @@ def check_tables():
     print("="*60)
     
     try:
-        conn = db.get_db_connection()
+        db = DatabaseMySQL()
+        conn = db.get_connection()
         cursor = conn.cursor()
         
         # Récupérer les tables
         cursor.execute("""
             SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
             WHERE TABLE_SCHEMA = %s
-        """, (config.MYSQL_CONFIG['database'],))
+        """, (Config.MYSQL_CONFIG['database'],))
         
         tables = [row[0] for row in cursor.fetchall()]
         
@@ -136,12 +129,16 @@ def main():
     print("📈 Statistiques globales")
     print("="*60)
     
-    stats = db.get_statistics()
-    print(f"\n   Rapports: {stats['total_reports']}")
-    print(f"   FAX total: {stats['total_fax']}")
-    print(f"   Erreurs: {stats['total_errors']}")
-    print(f"   Taux réussite moyen: {stats['avg_success_rate']}%")
-    print(f"   Utilisateurs uniques: {stats['users_count']}")
+    try:
+        db = DatabaseMySQL()
+        stats = db.get_statistics()
+        print(f"\n   Rapports: {stats.get('total_reports', 0)}")
+        print(f"   FAX total: {stats.get('total_fax', 0)}")
+        print(f"   Erreurs: {stats.get('total_errors', 0)}")
+        print(f"   Taux réussite moyen: {stats.get('avg_success_rate', 0)}%")
+        print(f"   Utilisateurs uniques: {stats.get('users_count', 0)}")
+    except Exception as e:
+        print(f"\n⚠️  Impossible de récupérer les statistiques: {e}")
     
     print("\n" + "█"*60)
     print("✅ Initialisation terminée avec succès!")
