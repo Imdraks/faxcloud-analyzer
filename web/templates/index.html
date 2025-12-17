@@ -92,29 +92,6 @@
 
         <!-- MAIN CONTENT -->
         <main class="main">
-            <!-- STATS -->
-            <section class="section">
-                <h2>📈 Statistiques</h2>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <h4>Total FAX</h4>
-                        <p class="stat-value" id="totalFax">{{ stats.get('total', 0) }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Envoyés</h4>
-                        <p class="stat-value" id="sentFax">{{ stats.get('sent', 0) }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Reçus</h4>
-                        <p class="stat-value" id="receivedFax">{{ stats.get('received', 0) }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Erreurs</h4>
-                        <p class="stat-value" id="errorFax">{{ stats.get('errors', 0) }}</p>
-                    </div>
-                </div>
-            </section>
-
             <!-- IMPORT SECTION -->
             <section class="section">
                 <h2>📥 Importer un Fichier</h2>
@@ -141,31 +118,24 @@
                 <div id="uploadMessage"></div>
             </section>
 
-            <!-- ENTRIES TABLE -->
+            <!-- REPORTS TABLE -->
             <section class="section entries-section">
-                <h2>📋 Derniers Enregistrements</h2>
-                
-                <div class="filter-buttons">
-                    <button class="btn active" data-filter="all">Tous</button>
-                    <button class="btn" data-filter="sent">Envoyés</button>
-                    <button class="btn" data-filter="received">Reçus</button>
-                    <button class="btn" data-filter="error">Erreurs</button>
-                </div>
+                <h2>📋 Derniers Rapports</h2>
 
                 <div class="entries-list">
                     <table class="entries-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
-                                <th>Numéro</th>
-                                <th>Type</th>
-                                <th>Durée</th>
-                                <th>État</th>
+                                <th>Total FAX</th>
+                                <th>Envoyés</th>
+                                <th>Reçus</th>
+                                <th>Erreurs</th>
                             </tr>
                         </thead>
-                        <tbody id="entriesBody">
+                        <tbody id="reportsBody">
                             <tr>
-                                <td colspan="5" class="text-center text-muted">Aucun enregistrement</td>
+                                <td colspan="5" class="text-center text-muted">Aucun rapport</td>
                             </tr>
                         </tbody>
                     </table>

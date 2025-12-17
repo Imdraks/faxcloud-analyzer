@@ -8,10 +8,17 @@ class FaxApp {
         this.init();
     }
 
+    // Helper pour les requêtes fetch avec header ngrok
+    async fetchWithNgrokHeader(url, options = {}) {
+        const headers = options.headers || {};
+        headers['ngrok-skip-browser-warning'] = '69420';
+        return fetch(url, { ...options, headers });
+    }
+
     init() {
         this.setupEventListeners();
         this.loadStats();
-        this.loadEntries();
+        this.loadReports();
     }
 
     setupEventListeners() {
@@ -72,7 +79,7 @@ class FaxApp {
             const progressDiv = document.getElementById('uploadProgress');
             progressDiv.classList.remove('hidden');
 
-            const response = await fetch('/api/upload', {
+            const response = await this.fetchWithNgrokHeader('/api/upload', {
                 method: 'POST',
                 body: formData
             });
@@ -99,7 +106,7 @@ class FaxApp {
 
     async loadStats() {
         try {
-            const response = await fetch('/api/stats');
+            const response = await this.fetchWithNgrokHeader('/api/stats');
             const stats = await response.json();
 
             document.getElementById('totalFax').textContent = stats.total || 0;
@@ -111,33 +118,45 @@ class FaxApp {
         }
     }
 
-    async loadEntries() {
+    async loadReports() {
         try {
-            const response = await fetch(`/api/entries?filter=${this.currentFilter}&limit=10`);
+            const response = await this.fetchWithNgrokHeader('/api/latest-reports');
             const data = await response.json();
 
-            const tbody = document.getElementById('entriesBody');
+            const tbody = document.getElementById('reportsBody');
             tbody.innerHTML = '';
 
-            if (data.entries.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Aucun enregistrement</td></tr>';
+            if (!data.reports || data.reports.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Aucun rapport</td></tr>';
                 return;
             }
 
-            data.entries.forEach(entry => {
+            data.reports.forEach(report => {
                 const row = document.createElement('tr');
+                // Formater la date: date_rapport peut être null
+                let dateStr = '-';
+                if (report.date_rapport) {
+                    try {
+                        const date = new Date(report.date_rapport);
+                        if (!isNaN(date.getTime())) {
+                            dateStr = date.toLocaleDateString('fr-FR', { 
+                                year: 'numeric', 
+                                month: '2-digit', 
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+                        }
+                    } catch (e) {
+                        console.error('Erreur parsing date rapport:', e, report.date_rapport);
+                    }
+                }
                 row.innerHTML = `
-                    <td>${new Date(entry.date).toLocaleDateString('fr-FR')}</td>
-                    <td>${entry.number || '-'}</td>
-                    <td>${entry.type || '-'}</td>
-                    <td>${entry.duration || '-'}</td>
-                    <td>
-                        <span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; 
-                        background: ${entry.status === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; 
-                        color: ${entry.status === 'error' ? '#fca5a5' : '#86efac'};">
-                            ${entry.status || '-'}
-                        </span>
-                    </td>
+                    <td>${dateStr}</td>
+                    <td>${report.total_fax || 0}</td>
+                    <td>${report.fax_envoyes || 0}</td>
+                    <td>${report.fax_recus || 0}</td>
+                    <td>${report.erreurs || 0}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -147,14 +166,7 @@ class FaxApp {
     }
 
     setFilter(filter, btn) {
-        this.currentFilter = filter;
-        
-        // Mettre à jour les boutons
-        document.querySelectorAll('.filter-buttons .btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        // Recharger les entrées
-        this.loadEntries();
+        // Non utilisé pour les rapports (pas de filtres)
     }
 
     async clearData() {
@@ -163,13 +175,13 @@ class FaxApp {
         }
 
         try {
-            const response = await fetch('/api/clear', { method: 'POST' });
+            const response = await this.fetchWithNgrokHeader('/api/clear', { method: 'POST' });
             const data = await response.json();
 
             if (data.success) {
                 this.showMessage('success', '✓ Données effacées');
                 this.loadStats();
-                this.loadEntries();
+                this.loadReports();
             }
         } catch (error) {
             this.showMessage('error', `✗ Erreur: ${error.message}`);

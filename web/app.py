@@ -21,6 +21,7 @@ from core.config import Config
 from core.importer import FileImporter
 from core.analyzer import FaxAnalyzer
 from core.reporter import ReportGenerator
+from core.pdf_generator import PDFReportGenerator
 from core.db_mysql import DatabaseMySQL
 from core.ngrok_helper import NgrokHelper
 
@@ -56,6 +57,16 @@ def get_db():
             logger.error(f"Erreur BD: {e}")
             return None
     return db
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MIDDLEWARE NGROK
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.after_request
+def add_ngrok_bypass_header(response):
+    """Ajoute le header pour contourner l'avertissement ngrok"""
+    response.headers['ngrok-skip-browser-warning'] = 'true'
+    return response
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ROUTES PRINCIPALES
@@ -314,6 +325,21 @@ def api_entries():
         return jsonify({'entries': [], 'total': 0, 'error': str(e)})
 
 
+@app.route('/api/latest-reports', methods=['GET'])
+def api_latest_reports():
+    """Récupérer les 5 derniers rapports"""
+    try:
+        db_conn = get_db()
+        if db_conn is None:
+            return jsonify({'reports': []})
+        
+        reports = db_conn.list_reports(limit=5, offset=0)
+        return jsonify({'reports': reports})
+    except Exception as e:
+        logger.error(f"Erreur latest-reports: {e}")
+        return jsonify({'reports': [], 'error': str(e)})
+
+
 @app.route('/api/report/<report_id>/data', methods=['GET'])
 def api_report_data(report_id):
     """Récupérer les données complètes d'un rapport"""
@@ -401,7 +427,8 @@ def api_report_qrcode(report_id):
             if ngrok_url:
                 public_url = ngrok_url
         
-        report_url = f"{public_url}/report/{report_id}"
+        # QR code pointe directement vers le PDF téléchargeable
+        report_url = f"{public_url}/api/report/{report_id}/pdf"
         
         # Générer le QR code
         qr = qrcode.QRCode(
@@ -442,14 +469,11 @@ def api_report_pdf(report_id):
         report_data = response.get_json()
         
         # Générer le PDF
-        db_conn = get_db()
-        if db_conn is None:
-            return jsonify({'error': 'Base de données indisponible'}), 503
-        generator = ReportGenerator(db_conn)
-        pdf_bytes = generator.generate_pdf_report(report_data)
+        pdf_buffer = PDFReportGenerator.generate_pdf(report_data)
+        pdf_buffer.seek(0)  # Remettre le curseur au début
         
         return send_file(
-            io.BytesIO(pdf_bytes),
+            pdf_buffer,
             mimetype='application/pdf',
             as_attachment=True,
             download_name=f"rapport_{report_id}.pdf"
