@@ -31,6 +31,18 @@ class FaxApp {
         const formData = new FormData();
         formData.append('file', file);
 
+        const contractInput = document.getElementById('contractInput');
+        const startInput = document.getElementById('startInput');
+        const endInput = document.getElementById('endInput');
+
+        const contract = contractInput?.value?.trim();
+        const start = startInput?.value?.trim();
+        const end = endInput?.value?.trim();
+
+        if (contract) formData.append('contract', contract);
+        if (start) formData.append('start', start);
+        if (end) formData.append('end', end);
+
         const msgDiv = document.getElementById('uploadMessage');
         const progressDiv = document.getElementById('uploadProgress');
         
@@ -45,8 +57,8 @@ class FaxApp {
             const data = await response.json();
 
             if (data.success) {
-                msgDiv.innerHTML = `<div class="success">✓ Rapport créé! ID: ${data.report_id}</div>`;
-                setTimeout(() => window.location.href = '/reports', 2000);
+                msgDiv.innerHTML = `<div class="success">✓ Rapport créé! ID: ${data.report_id} — FAX: ${data.total_fax ?? ''} — erreurs: ${data.errors ?? ''}</div>`;
+                setTimeout(() => window.location.href = `/report/${data.report_id}`, 900);
             } else {
                 msgDiv.innerHTML = `<div class="error">✗ Erreur: ${data.error}</div>`;
             }
