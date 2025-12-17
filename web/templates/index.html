@@ -118,28 +118,179 @@
                 <div id="uploadMessage"></div>
             </section>
 
-            <!-- REPORTS TABLE -->
+            <!-- REPORTS CARDS -->
             <section class="section entries-section">
-                <h2>📋 Derniers Rapports</h2>
-
-                <div class="entries-list">
-                    <table class="entries-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Total FAX</th>
-                                <th>Envoyés</th>
-                                <th>Reçus</th>
-                                <th>Erreurs</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reportsBody">
-                            <tr>
-                                <td colspan="5" class="text-center text-muted">Aucun rapport</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2>📋 Derniers Rapports</h2>
+                    <span id="reportsCount" style="font-size: 0.9rem; opacity: 0.7;">0 rapport(s)</span>
                 </div>
+
+                <div id="reportsContainer" class="reports-grid">
+                    <!-- Les rapports seront insérés ici -->
+                </div>
+
+                <style>
+                    .reports-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                        gap: 1.5rem;
+                    }
+
+                    .report-card {
+                        background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.1));
+                        backdrop-filter: blur(15px);
+                        border: 1px solid rgba(255, 255, 255, 0.15);
+                        border-radius: 16px;
+                        padding: 1.5rem;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        cursor: pointer;
+                        position: relative;
+                        overflow: hidden;
+                    }
+
+                    .report-card::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.05));
+                        opacity: 0;
+                        transition: opacity 0.3s ease;
+                    }
+
+                    .report-card:hover {
+                        transform: translateY(-8px);
+                        border-color: rgba(59, 130, 246, 0.5);
+                        background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.15));
+                        box-shadow: 0 12px 40px rgba(59, 130, 246, 0.2);
+                    }
+
+                    .report-card:hover::before {
+                        opacity: 1;
+                    }
+
+                    .report-card-content {
+                        position: relative;
+                        z-index: 1;
+                    }
+
+                    .report-date {
+                        font-size: 0.85rem;
+                        opacity: 0.7;
+                        margin-bottom: 1rem;
+                        display: flex;
+                        align-items: center;
+                        gap: 0.5rem;
+                    }
+
+                    .report-stats {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 1rem;
+                        margin: 1rem 0;
+                    }
+
+                    .stat-item {
+                        text-align: center;
+                        padding: 0.75rem;
+                        background: rgba(0, 0, 0, 0.2);
+                        border-radius: 12px;
+                        border: 1px solid rgba(255, 255, 255, 0.05);
+                        transition: all 0.3s ease;
+                    }
+
+                    .stat-item:hover {
+                        background: rgba(59, 130, 246, 0.15);
+                        border-color: rgba(59, 130, 246, 0.3);
+                    }
+
+                    .stat-label {
+                        font-size: 0.75rem;
+                        opacity: 0.7;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                        margin-bottom: 0.3rem;
+                    }
+
+                    .stat-value {
+                        font-size: 1.3rem;
+                        font-weight: 700;
+                        background: linear-gradient(135deg, #60a5fa, #a78bfa);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;
+                    }
+
+                    .report-actions {
+                        display: flex;
+                        gap: 0.75rem;
+                        margin-top: 1.5rem;
+                    }
+
+                    .report-btn {
+                        flex: 1;
+                        padding: 0.75rem 1rem;
+                        border: none;
+                        border-radius: 10px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        font-size: 0.9rem;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.5rem;
+                    }
+
+                    .report-btn-primary {
+                        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                        color: white;
+                        border: 1px solid rgba(59, 130, 246, 0.5);
+                    }
+
+                    .report-btn-primary:hover {
+                        background: linear-gradient(135deg, #2563eb, #7c3aed);
+                        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+                        transform: scale(1.05);
+                    }
+
+                    .report-btn-secondary {
+                        background: rgba(255, 255, 255, 0.1);
+                        color: var(--text);
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                    }
+
+                    .report-btn-secondary:hover {
+                        background: rgba(255, 255, 255, 0.2);
+                        border-color: rgba(255, 255, 255, 0.3);
+                    }
+
+                    .no-reports {
+                        text-align: center;
+                        padding: 3rem 2rem;
+                        opacity: 0.6;
+                        font-size: 1.1rem;
+                        grid-column: 1 / -1;
+                    }
+
+                    .no-reports-icon {
+                        font-size: 3rem;
+                        margin-bottom: 1rem;
+                        opacity: 0.3;
+                    }
+
+                    @media (max-width: 768px) {
+                        .reports-grid {
+                            grid-template-columns: 1fr;
+                        }
+
+                        .report-stats {
+                            grid-template-columns: 1fr;
+                        }
+                    }
+                </style>
             </section>
 
             <!-- ACTIONS -->

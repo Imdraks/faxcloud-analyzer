@@ -188,17 +188,26 @@ class FaxApp {
             const response = await this.fetchWithNgrokHeader('/api/latest-reports');
             const data = await response.json();
 
-            const tbody = document.getElementById('reportsBody');
-            tbody.innerHTML = '';
+            const container = document.getElementById('reportsContainer');
+            const countSpan = document.getElementById('reportsCount');
+            container.innerHTML = '';
 
             if (!data.reports || data.reports.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Aucun rapport</td></tr>';
+                container.innerHTML = `
+                    <div class="no-reports">
+                        <div class="no-reports-icon">📭</div>
+                        <p>Aucun rapport pour le moment</p>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Importez un fichier CSV pour commencer</p>
+                    </div>
+                `;
+                countSpan.textContent = '0 rapport(s)';
                 return;
             }
 
+            countSpan.textContent = `${data.reports.length} rapport(s)`;
+
             data.reports.forEach(report => {
-                const row = document.createElement('tr');
-                // Formater la date: date_rapport peut être null
+                // Formater la date
                 let dateStr = '-';
                 if (report.date_rapport) {
                     try {
@@ -213,21 +222,65 @@ class FaxApp {
                             });
                         }
                     } catch (e) {
-                        console.error('Erreur parsing date rapport:', e, report.date_rapport);
+                        console.error('Erreur parsing date rapport:', e);
                     }
                 }
-                row.innerHTML = `
-                    <td>${dateStr}</td>
-                    <td>${report.total_fax || 0}</td>
-                    <td>${report.fax_envoyes || 0}</td>
-                    <td>${report.fax_recus || 0}</td>
-                    <td>${report.erreurs || 0}</td>
+
+                // Calculer le taux de réussite
+                const total = report.total_fax || 1;
+                const reussi = (report.total_fax - (report.erreurs || 0)) || 0;
+                const tauxReussite = Math.round((reussi / total) * 100);
+
+                // Créer la card
+                const card = document.createElement('div');
+                card.className = 'report-card';
+                card.innerHTML = `
+                    <div class="report-card-content">
+                        <div class="report-date">
+                            <span>📅</span>
+                            <span>${dateStr}</span>
+                        </div>
+                        
+                        <div class="report-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total</div>
+                                <div class="stat-value">${report.total_fax || 0}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Envoyés</div>
+                                <div class="stat-value">${report.fax_envoyes || 0}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Reçus</div>
+                                <div class="stat-value">${report.fax_recus || 0}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Erreurs</div>
+                                <div class="stat-value" style="color: ${report.erreurs > 0 ? '#ef4444' : '#10b981'}">${report.erreurs || 0}</div>
+                            </div>
+                        </div>
+
+                        <div style="background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 10px; margin: 1rem 0; text-align: center;">
+                            <div style="font-size: 0.75rem; opacity: 0.7; text-transform: uppercase; margin-bottom: 0.3rem;">Taux de Réussite</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: ${tauxReussite >= 90 ? '#10b981' : tauxReussite >= 70 ? '#f59e0b' : '#ef4444'}">${tauxReussite}%</div>
+                        </div>
+
+                        <div class="report-actions">
+                            <button class="report-btn report-btn-primary" onclick="window.location.href='/report/${report.report_id}'">
+                                📊 Voir
+                            </button>
+                            <button class="report-btn report-btn-secondary" onclick="downloadPDF('${report.report_id}')">
+                                📥 PDF
+                            </button>
+                        </div>
+                    </div>
                 `;
-                tbody.appendChild(row);
+                container.appendChild(card);
             });
         } catch (error) {
-            console.error('Erreur entries:', error);
+            console.error('Erreur reports:', error);
         }
+    }
     }
 
     setFilter(filter, btn) {

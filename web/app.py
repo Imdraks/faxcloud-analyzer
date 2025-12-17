@@ -691,14 +691,25 @@ def api_report_pdf(report_id):
         # Préparer les données pour le PDF
         report_data = {
             'id': report['id'],
-            'title': f"Rapport - {report['fichier_source']}",
-            'date': str(report['date_rapport']),
-            'total': report['total_fax'],
-            'sent': report['fax_envoyes'],
-            'received': report['fax_recus'],
-            'errors': report['erreurs_totales'],
-            'success_rate': report['taux_reussite'],
-            'entries': entries
+            'analysis_name': report['fichier_source'],
+            'date_analyse': str(report['date_rapport']),
+            'stats': {
+                'total_fax': report['total_fax'],
+                'fax_envoyes': report['fax_envoyes'],
+                'fax_recus': report['fax_recus'],
+                'erreurs_totales': report['erreurs_totales'],
+                'taux_reussite': report['taux_reussite']
+            },
+            'fax_data': [
+                {
+                    'numero': e['numero_normalise'] or e['numero_original'],
+                    'pages': e['pages'],
+                    'detail_erreur': e['erreurs'] or 'N/A',
+                    'date_envoi': e['date_heure'],
+                    'statut': 'erreur' if e['erreurs'] else 'ok'
+                }
+                for e in entries
+            ]
         }
         
         # Générer le PDF
