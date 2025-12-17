@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapports - FaxCloud Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📊 FaxCloud Analyzer</h1>
+            <p>Liste de vos rapports d'analyse</p>
+            <nav>
+                <a href="/">Accueil</a>
+                <a href="/reports">Rapports</a>
+            </nav>
+        </header>
+
+        <main class="main">
+            <section class="section">
+                <h2>📋 Rapports</h2>
+                
+                <div id="reportsList" class="reports-list">
+                    {% if reports %}
+                        {% for report in reports %}
+                            <div class="report-item">
+                                <h3>{{ report.contract_id or 'Sans contrat' }}</h3>
+                                <p><strong>Période:</strong> {{ report.date_debut }} → {{ report.date_fin }}</p>
+                                <p><strong>FAX:</strong> {{ report.total_fax }} | <strong>Erreurs:</strong> {{ report.erreurs_totales }} | <strong>Taux:</strong> {{ report.taux_reussite }}%</p>
+                                <a href="/report/{{ report.id }}" class="btn">Voir détails →</a>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">Aucun rapport en base.</p>
+                    {% endif %}
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>FaxCloud Analyzer v1.0</p>
+        </footer>
+    </div>
+</body>
+</html>

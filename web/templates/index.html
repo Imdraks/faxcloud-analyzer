@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaxCloud Analyzer - Accueil</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📊 FaxCloud Analyzer</h1>
+            <p>Importez et analysez vos exports FAX facilement</p>
+            <nav>
+                <a href="/">Accueil</a>
+                <a href="/reports">Rapports</a>
+            </nav>
+        </header>
+
+        <main class="main">
+            <!-- UPLOAD -->
+            <section class="section">
+                <h2>📥 Importer un Fichier</h2>
+                
+                <div class="drag-drop-zone" id="dragDropZone">
+                    <p><strong>📄 Glissez-déposez votre CSV/XLSX ici</strong></p>
+                    <p style="font-size: 0.9rem; margin: 1rem 0;">ou</p>
+                    <label for="fileInput" class="btn">Sélectionner un fichier</label>
+                    <input type="file" id="fileInput" accept=".csv,.xlsx" style="display: none;">
+                </div>
+
+                <div id="uploadProgress" class="hidden">
+                    <p>Importation en cours...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+
+                <div id="uploadMessage"></div>
+            </section>
+
+            <!-- STATS -->
+            <section class="section">
+                <h2>📈 Statistiques</h2>
+                <p>Rapports en base: <strong>{{ reports_count }}</strong></p>
+                <a href="/reports" class="btn">Voir les rapports →</a>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>FaxCloud Analyzer v1.0 | Backend CLI + Web API</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

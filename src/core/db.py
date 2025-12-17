@@ -147,4 +147,39 @@ def get_report_by_id(report_id: str) -> Optional[Dict]:
     conn.close()
     report = dict(row)
     report["entries"] = entries
+
+    # Statistiques dérivées depuis les entrées (utile pour afficher pages SF/RF)
+    pages_sf = 0
+    pages_rf = 0
+    fax_sf = 0
+    fax_rf = 0
+    for e in entries:
+        t = (e.get("type") or "").lower()
+        pages = e.get("pages") or 0
+        try:
+            pages = int(pages)
+        except Exception:
+            pages = 0
+
+        if t == "send":
+            fax_sf += 1
+            pages_sf += pages
+        elif t == "receive":
+            fax_rf += 1
+            pages_rf += pages
+
+    report["fax_sf"] = fax_sf
+    report["fax_rf"] = fax_rf
+    # Compat avec champs stats/affichage
+    report["fax_envoyes"] = report.get("fax_envoyes", fax_sf)
+    report["fax_recus"] = report.get("fax_recus", fax_rf)
+
+    report["pages_reelles_sf"] = pages_sf
+    report["pages_reelles_rf"] = pages_rf
+    report["pages_reelles_totales"] = pages_sf + pages_rf
+
+    # Champs pages (par cohérence avec "envoyées/reçues")
+    report["pages_envoyees"] = pages_sf
+    report["pages_recues"] = pages_rf
+
     return report

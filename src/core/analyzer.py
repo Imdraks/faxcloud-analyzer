@@ -53,7 +53,15 @@ def _normalize_row(row: Dict) -> Dict:
         erreurs.append(erreur_pages)
 
     mode = row.get("mode", "").strip().upper()
-    type_value = "send" if mode == "SF" else "receive"
+    if mode not in {"SF", "RF"}:
+        erreurs.append("Type fax invalide")
+
+    if mode == "SF":
+        type_value = "send"
+    elif mode == "RF":
+        type_value = "receive"
+    else:
+        type_value = "unknown"
 
     return {
         "id": str(uuid.uuid4()),
@@ -80,7 +88,8 @@ def analyze_data(rows: List[Dict], contract_id: str | None, date_debut: str | No
     pages_recues = sum(e["pages"] for e in entries if e["type"] == "receive")
     errors = [err for e in entries for err in e["erreurs"]]
 
-    erreurs_totales = len(errors)
+    # Erreurs totales = nombre de lignes invalides (les détails restent dans errors)
+    erreurs_totales = sum(1 for e in entries if not e["valide"])
     taux_reussite = round(((total_fax - erreurs_totales) / total_fax) * 100, 2) if total_fax else 0.0
 
     erreur_counts: Dict[str, int] = {}
@@ -91,9 +100,16 @@ def analyze_data(rows: List[Dict], contract_id: str | None, date_debut: str | No
         "total_fax": total_fax,
         "fax_envoyes": fax_envoyes,
         "fax_recus": fax_recus,
+        # Alias explicites (SF/RF)
+        "fax_sf": fax_envoyes,
+        "fax_rf": fax_recus,
         "pages_totales": pages_envoyees + pages_recues,
         "pages_envoyees": pages_envoyees,
         "pages_recues": pages_recues,
+        # Pages "réelles" (dans ce projet, la colonne pages importée correspond au nombre de pages réelles)
+        "pages_reelles_totales": pages_envoyees + pages_recues,
+        "pages_reelles_sf": pages_envoyees,
+        "pages_reelles_rf": pages_recues,
         "erreurs_totales": erreurs_totales,
         "taux_reussite": taux_reussite,
         "erreurs_par_type": erreur_counts,

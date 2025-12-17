@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport - FaxCloud Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📊 FaxCloud Analyzer</h1>
+            <p>Détail d'un rapport</p>
+            <nav>
+                <a href="/">Accueil</a>
+                <a href="/reports">Rapports</a>
+            </nav>
+        </header>
+
+        <main class="main">
+            <section class="section">
+                <h2>{{ report.contract_id or 'Rapport' }}</h2>
+                <p><strong>Période:</strong> {{ report.date_debut or '—' }} → {{ report.date_fin or '—' }}</p>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>Total FAX</h4>
+                        <p class="stat-value">{{ report.total_fax }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>FAX SF</h4>
+                        <p class="stat-value">{{ report.fax_sf or report.fax_envoyes or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>FAX RF</h4>
+                        <p class="stat-value">{{ report.fax_rf or report.fax_recus or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pages réelles total</h4>
+                        <p class="stat-value">{{ report.pages_reelles_totales or report.pages_totales or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pages réelles SF</h4>
+                        <p class="stat-value">{{ report.pages_reelles_sf or report.pages_envoyees or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pages réelles RF</h4>
+                        <p class="stat-value">{{ report.pages_reelles_rf or report.pages_recues or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Erreurs</h4>
+                        <p class="stat-value">{{ report.erreurs_totales }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Taux de réussite</h4>
+                        <p class="stat-value">{{ report.taux_reussite }}%</p>
+                    </div>
+                </div>
+
+                {% if report.qr_path %}
+                    <div style="margin-top: 2rem;">
+                        <h3>📱 QR Code</h3>
+                        <img src="/api/report/{{ report.id }}/qr" alt="QR Code" style="width: 200px; height: 200px;">
+                    </div>
+                {% endif %}
+
+                <div style="margin-top: 2rem;">
+                    <a href="/reports" class="btn">← Retour</a>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>FaxCloud Analyzer v1.0</p>
+        </footer>
+    </div>
+</body>
+</html>
