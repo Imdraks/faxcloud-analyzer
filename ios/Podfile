@@ -3,6 +3,8 @@
 
 platform :ios, '14.0'
 
+project 'FaxCloudAnalyzer.xcodeproj'
+
 target 'FaxCloudAnalyzer' do
   use_frameworks!
 
