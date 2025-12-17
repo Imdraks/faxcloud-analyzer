@@ -190,7 +190,7 @@ class Config:
     NUMBER_VALIDATION_RULES = NUMBER_VALIDATION_RULES
     ERROR_TYPES = ERROR_TYPES
     BASE_REPORT_URL = BASE_REPORT_URL
-    USE_NGROK = os.getenv('USE_NGROK', 'false').lower() == 'true'
+    USE_NGROK = os.getenv('USE_NGROK', 'false').lower() == 'true'  # TEST LOCAL: false
     
     @staticmethod
     def ensure_directories() -> None:

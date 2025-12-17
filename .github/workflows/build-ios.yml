@@ -1,0 +1,84 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '2.7'
+        bundler-cache: true
+        working-directory: ios
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install CocoaPods dependencies
+      run: |
+        cd ios
+        pod install
+    
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+    
+    - name: Build iOS App
+      run: |
+        cd ios
+        xcodebuild -workspace FaxCloudAnalyzer.xcworkspace \
+          -scheme FaxCloudAnalyzer \
+          -configuration Release \
+          -derivedDataPath build \
+          -arch arm64 \
+          -sdk iphoneos \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+    
+    - name: Create IPA
+      run: |
+        cd ios
+        mkdir -p output
+        xcodebuild -exportArchive \
+          -archivePath build/FaxCloudAnalyzer.xcarchive \
+          -exportOptionsPlist ExportOptions.plist \
+          -exportPath output
+    
+    - name: Upload IPA to artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: FaxCloudAnalyzer.ipa
+        path: ios/output/*.ipa
+    
+    - name: Create Release
+      uses: actions/create-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+    
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./ios/output/FaxCloudAnalyzer.ipa
+        asset_name: FaxCloudAnalyzer-${{ github.ref_name }}.ipa
+        asset_content_type: application/octet-stream

@@ -6,45 +6,59 @@
     <title>FaxCloud Analyzer - Accueil</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        /* MENU MOBILE FIXE */
+        /* BARRE MOBILE FLOTTANTE */
         .mobile-nav {
             display: none;
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 70px;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            height: auto;
             background: rgba(10, 10, 30, 0.95);
-            backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 0.5rem 0;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            padding: 0.75rem;
             z-index: 1000;
-            justify-content: space-around;
+            justify-content: center;
             align-items: center;
+            gap: 1rem;
+            border-radius: 50px;
+            box-shadow: 0 8px 32px rgba(0, 255, 136, 0.1);
+            transition: all 0.3s ease;
+            max-width: 90%;
+            opacity: 1;
+        }
+
+        .mobile-nav.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(-50%) translateY(120px);
         }
 
         .mobile-nav a {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.3rem;
+            gap: 0.2rem;
             text-decoration: none;
             color: rgba(255, 255, 255, 0.6);
-            font-size: 0.8rem;
-            flex: 1;
-            padding: 0.5rem;
-            border-radius: 8px;
+            font-size: 0.75rem;
+            flex: 0 1 auto;
+            padding: 0.6rem 1rem;
+            border-radius: 12px;
             transition: all 0.3s ease;
+            min-width: auto;
         }
 
         .mobile-nav a:hover,
         .mobile-nav a.active {
             color: #00ff88;
-            background: rgba(0, 255, 136, 0.1);
+            background: rgba(0, 255, 136, 0.15);
+            transform: scale(1.1);
         }
 
         .mobile-nav span {
-            font-size: 1.5rem;
+            font-size: 1.3rem;
         }
 
         @media (max-width: 768px) {
@@ -172,8 +186,8 @@
         </footer>
     </div>
 
-    <!-- MENU MOBILE FIXE -->
-    <nav class="mobile-nav">
+    <!-- BARRE MOBILE FLOTTANTE -->
+    <nav class="mobile-nav" id="mobileNav">
         <a href="/" class="active" data-page="home">
             <span>🏠</span>
             <div>Accueil</div>
@@ -185,10 +199,36 @@
     </nav>
 
     <script>
-        // Script pour le menu mobile
+        // Gestion barre flottante mobile
+        const mobileNav = document.getElementById('mobileNav');
+        let lastScrollTop = 0;
+        let isHidden = false;
+
+        window.addEventListener('scroll', () => {
+            const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Afficher/masquer en fonction du scroll
+            if (currentScroll > lastScrollTop && currentScroll > 100) {
+                // Scroll down - masquer
+                if (!isHidden) {
+                    mobileNav.classList.add('hidden');
+                    isHidden = true;
+                }
+            } else {
+                // Scroll up - afficher
+                if (isHidden) {
+                    mobileNav.classList.remove('hidden');
+                    isHidden = false;
+                }
+            }
+            
+            lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
+        });
+
+        // Gestion des liens actifs
         document.addEventListener('DOMContentLoaded', () => {
             const currentPath = window.location.pathname;
-            const navLinks = document.querySelectorAll('.mobile-nav a');
+            const navLinks = document.querySelectorAll('#mobileNav a');
             
             navLinks.forEach(link => {
                 link.classList.remove('active');

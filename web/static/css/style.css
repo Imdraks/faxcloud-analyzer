@@ -616,7 +616,7 @@ html, body {
 
     .main {
         padding: 0;
-        margin-bottom: 80px;
+        margin-bottom: 0;
     }
 
     .section {
@@ -767,7 +767,7 @@ html, body {
 
     .main {
         padding: 0;
-        margin-bottom: 80px;
+        margin-bottom: 0;
     }
 
     .section {
