@@ -25,13 +25,19 @@ jobs:
       with:
         node-version: '18'
     
+    - name: Install CocoaPods dependencies
+      run: |
+        cd ios
+        pod install
+    
     - name: Select Xcode version
       run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
     
     - name: Build iOS App
       run: |
         cd ios
-        xcodebuild -scheme FaxCloudAnalyzer \
+        xcodebuild -workspace FaxCloudAnalyzer.xcworkspace \
+          -scheme FaxCloudAnalyzer \
           -configuration Release \
           -derivedDataPath build \
           -arch arm64 \
