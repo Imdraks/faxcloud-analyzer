@@ -315,6 +315,11 @@ class FaxApp {
     }
 }
 
+// Fonction globale pour télécharger le PDF
+function downloadPDF(reportId) {
+    window.location.href = `/api/report/${reportId}/pdf`;
+}
+
 // Initialiser l'app au chargement
 document.addEventListener('DOMContentLoaded', () => {
     new FaxApp();
