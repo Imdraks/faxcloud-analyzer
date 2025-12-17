@@ -33,7 +33,7 @@ from core.validation_service import FILTER_SCHEMA, ValidationError
 
 # Importer les routes v2 API
 try:
-    from web.api_v2 import register_api_v2_routes
+    from api_v2 import register_api_v2_routes
 except ImportError:
     register_api_v2_routes = None
 
