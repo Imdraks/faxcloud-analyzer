@@ -144,10 +144,8 @@ def api_upload_progress(session_id):
 
 @app.route('/', methods=['GET'])
 def index():
-    """Page d'accueil - Import CSV"""
-    try:
-        db_conn = get_db()
-        stats = db_conn.get_stats() if db_conn else {}
+    """Page d'accueil - Dashboard moderne"""
+    return render_template('dashboard.html')
         return render_template('index.html', stats=stats)
     except Exception as e:
         logger.error(f"Erreur index: {e}")
