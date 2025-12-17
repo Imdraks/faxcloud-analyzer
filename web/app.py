@@ -70,10 +70,12 @@ progress_sessions = {}
 
 class ProgressTracker:
     """Tracker pour envoyer les mises à jour de progression via SSE"""
+    progress_sessions = {}  # Dictionnaire de classe pour stocker les sessions
+    
     def __init__(self, session_id):
         self.session_id = session_id
         self.queue = queue.Queue()
-        self.progress_sessions[session_id] = self
+        ProgressTracker.progress_sessions[session_id] = self
     
     def update(self, percent, step, message):
         """Envoyer une mise à jour de progression"""
