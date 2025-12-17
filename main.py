@@ -14,9 +14,10 @@ from src.core import (
     init_database,
     insert_report_to_db,
     list_report_files,
+    set_debug_mode,
+    settings,
 )
 from src.core.config import configure_logging, ensure_directories
-from src.server import create_app
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -69,13 +70,6 @@ def cmd_reports_dir(args: argparse.Namespace) -> None:
         print(path)
 
 
-def cmd_serve(args: argparse.Namespace) -> None:
-    app = create_app()
-    host = args.host
-    port = args.port
-    app.run(host=host, port=port)
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="FaxCloud Analyzer CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -101,18 +95,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_reports_dir = sub.add_parser("reports-dir", help="Lister les fichiers rapport JSON")
     p_reports_dir.set_defaults(func=cmd_reports_dir)
 
-    p_serve = sub.add_parser("serve", help="Lancer le serveur web (Flask) pour consulter les rapports")
-    p_serve.add_argument("--host", default="0.0.0.0", help="Adresse d'écoute (défaut: 0.0.0.0)")
-    p_serve.add_argument("--port", type=int, default=5000, help="Port HTTP (défaut: 5000)")
-    p_serve.set_defaults(func=cmd_serve)
-
     return parser
 
 
 def main() -> None:
-    configure_logging(logging.INFO)
     parser = build_parser()
+    parser.add_argument("--debug", action="store_true", help="Activer le mode debug")
     args = parser.parse_args()
+    configure_logging(logging.DEBUG if getattr(args, "debug", False) else logging.INFO)
+    set_debug_mode(getattr(args, "debug", False))
     args.func(args)
 
 

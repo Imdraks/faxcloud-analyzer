@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+DEBUG = False
+
+
 @dataclass(frozen=True)
 class Settings:
     """
@@ -38,6 +41,17 @@ def _build_settings() -> Settings:
 settings = _build_settings()
 
 
+def set_debug_mode(enabled: bool) -> None:
+    """
+    Enable or disable debug logging globally.
+    """
+
+    global DEBUG
+    DEBUG = enabled
+    level = logging.DEBUG if enabled else logging.INFO
+    configure_logging(level)
+
+
 def ensure_directories() -> None:
     """
     Create required directories if they are missing.
@@ -57,6 +71,11 @@ def ensure_directories() -> None:
 def configure_logging(level: int = logging.INFO) -> None:
     ensure_directories()
     log_file = settings.logs_dir / "analyzer.log"
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        root_logger.setLevel(level)
+        return
+
     logging.basicConfig(
         level=level,
         format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",

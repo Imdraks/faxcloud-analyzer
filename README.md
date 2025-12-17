@@ -226,14 +226,17 @@ Affiche les détails complets d'un rapport.
 python main.py --help
 ```
 
-#### 6. Lancer le serveur web (localhost:5000)
+#### 6. Activer le mode debug
 ```bash
-python main.py serve --host 0.0.0.0 --port 5000
+python main.py --debug import --file exports/data.csv --contract TEST
 ```
-Servez l’interface statique `web/` et exposez des endpoints JSON:
-- `GET /health` — statut du service
-- `GET /reports` — liste des rapports en base SQLite
-- `GET /reports/<report_id>` — détail d’un rapport
+Le flag `--debug` augmente la verbosité des logs (console + `logs/analyzer.log`).
+
+#### 7. Lancer l'interface web statique (Windows)
+```bat
+run_web.bat 8000
+```
+Ouvre un serveur HTTP local sur le dossier `web` (port optionnel, défaut 8000).
 
 ---
 
