@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Détail Rapport - FaxCloud Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    <style>
+        :root {
+            --primary: #667eea;
+            --primary-light: #764ba2;
+            --secondary: #f093fb;
+            --danger: #ff6b6b;
+            --success: #51cf66;
+            --warning: #ffd43b;
+            --dark: #2d3748;
+            --light: #f7fafc;
+            --border: #e2e8f0;
+            --text: #4a5568;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--text);
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: 100vh;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            background: var(--dark);
+            padding: 25px 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            position: fixed;
+            height: 100vh;
+            width: 280px;
+            overflow-y: auto;
+        }
+
+        .sidebar-brand {
+            padding: 0 25px 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: bold;
+            color: white;
+            font-size: 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .sidebar-menu {
+            padding: 15px 0;
+        }
+
+        .sidebar-item {
+            padding: 12px 25px;
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .sidebar-item:hover {
+            color: white;
+            background: rgba(255,255,255,0.1);
+            padding-left: 35px;
+        }
+
+        .sidebar-item.active {
+            color: var(--primary);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        /* MAIN CONTENT */
+        .main-content {
+            margin-left: 280px;
+            padding: 20px;
+            background: var(--light);
+        }
+
+        .header {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .header-info h1 {
+            color: var(--dark);
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .header-subtitle {
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        /* STATS GRID */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-card.primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+        }
+
+        .stat-card.success {
+            background: linear-gradient(135deg, var(--success), #69d781);
+            color: white;
+        }
+
+        .stat-card.danger {
+            background: linear-gradient(135deg, var(--danger), #ff8a8a);
+            color: white;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        /* GRID LAYOUT */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: var(--light);
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .panel-body {
+            padding: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+
+        /* ENTRIES TABLE */
+        .entries-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0;
+        }
+
+        .entries-table thead {
+            background: var(--light);
+        }
+
+        .entries-table th {
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .entries-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        .entries-table tbody tr:hover {
+            background: var(--light);
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-success {
+            background: rgba(81, 207, 102, 0.1);
+            color: var(--success);
+        }
+
+        .badge-error {
+            background: rgba(255, 107, 107, 0.1);
+            color: var(--danger);
+        }
+
+        /* BACK BUTTON */
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
+            text-decoration: none;
+            margin-bottom: 15px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            gap: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: static;
+                margin-bottom: 20px;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .header {
+                flex-direction: column;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .entries-table {
+                font-size: 12px;
+            }
+
+            .entries-table th,
+            .entries-table td {
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="sidebar-icon">FC</div>
+                FaxCloud
+            </div>
+            <nav class="sidebar-menu">
+                <a href="/" class="sidebar-item">📊 Dashboard</a>
+                <a href="/reports" class="sidebar-item active">📋 Rapports</a>
+                <a href="/admin" class="sidebar-item">⚙️ Admin</a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <a href="/reports" class="back-button">← Retour aux rapports</a>
+
+            <div class="header">
+                <div class="header-info">
+                    <h1 id="reportName">Rapport FAX</h1>
+                    <div class="header-subtitle">
+                        <span id="reportDate">Date</span> • 
+                        <span id="reportStatus">Statut</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="downloadReport()">📥 Télécharger</button>
+                    <button class="btn btn-primary" onclick="shareReport()">🔗 Partager</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Entrées</div>
+                    <div class="stat-value" id="totalEntries">-</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-label">Valides</div>
+                    <div class="stat-value" id="validEntries">-</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-label">Erreurs</div>
+                    <div class="stat-value" id="errorEntries">-</div>
+                </div>
+                <div class="stat-card primary">
+                    <div class="stat-label">Taux de Succès</div>
+                    <div class="stat-value" id="successRate">-%</div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="panel">
+                    <div class="panel-header">📊 Distribution</div>
+                    <div class="panel-body">
+                        <div class="chart-container">
+                            <canvas id="distributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">ℹ️ Informations</div>
+                    <div class="panel-body">
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-size: 12px; color: var(--text); margin-bottom: 5px;">Nom du fichier</div>
+                            <div style="font-weight: 600;" id="fileName">-</div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-size: 12px; color: var(--text); margin-bottom: 5px;">Taille du fichier</div>
+                            <div style="font-weight: 600;" id="fileSize">-</div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-size: 12px; color: var(--text); margin-bottom: 5px;">Créé le</div>
+                            <div style="font-weight: 600;" id="createdDate">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">📋 Entrées FAX</div>
+                <div class="panel-body">
+                    <table class="entries-table">
+                        <thead>
+                            <tr>
+                                <th>Numéro FAX</th>
+                                <th>Appelant</th>
+                                <th>Destinataire</th>
+                                <th>Durée</th>
+                                <th>Pages</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody id="entriesTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 20px;">Chargement...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const reportId = parseInt(window.location.pathname.split('/').pop());
+        let distributionChart = null;
+
+        async function loadReport() {
+            try {
+                // Load report details
+                const reportResponse = await fetch(`/api/reports/${reportId}`);
+                const report = await reportResponse.json();
+                displayReport(report);
+
+                // Load entries
+                const entriesResponse = await fetch(`/api/reports/${reportId}/entries?limit=50`);
+                const entries = await entriesResponse.json();
+                displayEntries(entries);
+
+                // Update stats
+                updateStats(report);
+                updateChart(report);
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+
+        function displayReport(report) {
+            document.getElementById('reportName').textContent = report.name;
+            document.getElementById('reportDate').textContent = new Date(report.created_at).toLocaleDateString('fr-FR');
+            document.getElementById('reportStatus').textContent = report.status === 'completed' ? '✓ Complété' : '⟳ En cours';
+            document.getElementById('fileName').textContent = report.name;
+            document.getElementById('fileSize').textContent = (report.file_size / 1024).toFixed(2) + ' KB';
+            document.getElementById('createdDate').textContent = new Date(report.created_at).toLocaleDateString('fr-FR');
+        }
+
+        function displayEntries(entries) {
+            const tbody = document.getElementById('entriesTableBody');
+            if (entries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">Aucune entrée</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = entries.map(entry => `
+                <tr>
+                    <td><code style="background: var(--light); padding: 2px 6px; border-radius: 4px;">${entry.fax_number}</code></td>
+                    <td>${entry.caller_id}</td>
+                    <td>${entry.recipient}</td>
+                    <td>${entry.duration}s</td>
+                    <td>${entry.page_count}</td>
+                    <td>
+                        <span class="badge ${entry.status === 'valid' ? 'badge-success' : 'badge-error'}">
+                            ${entry.status === 'valid' ? '✓ Valide' : '✕ Erreur'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateStats(report) {
+            document.getElementById('totalEntries').textContent = report.entries;
+            document.getElementById('validEntries').textContent = report.valid;
+            document.getElementById('errorEntries').textContent = report.errors;
+            const successRate = report.entries > 0 ? (report.valid / report.entries * 100).toFixed(1) : 0;
+            document.getElementById('successRate').textContent = successRate + '%';
+        }
+
+        function updateChart(report) {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            if (distributionChart) {
+                distributionChart.destroy();
+            }
+
+            distributionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Valides', 'Erreurs'],
+                    datasets: [{
+                        data: [report.valid, report.errors],
+                        backgroundColor: ['#51cf66', '#ff6b6b'],
+                        borderColor: 'white',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function downloadReport() {
+            window.location.href = `/api/reports/${reportId}/export`;
+        }
+
+        function shareReport() {
+            const url = window.location.href;
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Rapport FAX',
+                    url: url
+                });
+            } else {
+                navigator.clipboard.writeText(url);
+                alert('Lien copié !');
+            }
+        }
+
+        loadReport();
+    </script>
+</body>
+</html>

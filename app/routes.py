@@ -150,32 +150,3 @@ def register_routes(app):
     """Enregistrer tous les blueprints"""
     app.register_blueprint(bp_web)
     app.register_blueprint(bp_api)
-
-
-# ========== API ADMIN ROUTES ==========
-@bp_api.route('/admin/health/detailed', methods=['GET'])
-def admin_health_detailed():
-    """Santé détaillée du système"""
-    stats = data_service.get_stats()
-    return jsonify({
-        'status': 'healthy',
-        'database': {
-            'reports': stats['total_reports'],
-            'entries': stats['total_entries']
-        },
-        'uptime': 3600
-    }), 200
-
-@bp_api.route('/admin/metrics', methods=['GET'])
-def admin_metrics():
-    """Métriques système"""
-    return jsonify({
-        'system': {
-            'cpu_percent': 12.5,
-            'memory_mb': 256.3
-        },
-        'requests': {
-            'total': 1250,
-            'errors': 5
-        }
-    }), 200

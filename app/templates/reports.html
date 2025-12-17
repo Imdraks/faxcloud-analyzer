@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapports - FaxCloud Analyzer</title>
+    <style>
+        :root {
+            --primary: #667eea;
+            --primary-light: #764ba2;
+            --secondary: #f093fb;
+            --danger: #ff6b6b;
+            --success: #51cf66;
+            --warning: #ffd43b;
+            --dark: #2d3748;
+            --light: #f7fafc;
+            --border: #e2e8f0;
+            --text: #4a5568;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--text);
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: 100vh;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            background: var(--dark);
+            padding: 25px 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            position: fixed;
+            height: 100vh;
+            width: 280px;
+            overflow-y: auto;
+        }
+
+        .sidebar-brand {
+            padding: 0 25px 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: bold;
+            color: white;
+            font-size: 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .sidebar-menu {
+            padding: 15px 0;
+        }
+
+        .sidebar-item {
+            padding: 12px 25px;
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .sidebar-item:hover {
+            color: white;
+            background: rgba(255,255,255,0.1);
+            padding-left: 35px;
+        }
+
+        .sidebar-item.active {
+            color: var(--primary);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        /* MAIN CONTENT */
+        .main-content {
+            margin-left: 280px;
+            padding: 20px;
+            background: var(--light);
+        }
+
+        .header {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: var(--dark);
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .header-subtitle {
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* FILTERS */
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .filter-input {
+            padding: 10px 15px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        /* REPORTS TABLE */
+        .reports-table {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table thead {
+            background: var(--light);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .table th {
+            padding: 15px 20px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table td {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table tbody tr:hover {
+            background: var(--light);
+        }
+
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .report-name {
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-success {
+            background: rgba(81, 207, 102, 0.1);
+            color: var(--success);
+        }
+
+        .badge-processing {
+            background: rgba(255, 212, 59, 0.1);
+            color: var(--warning);
+        }
+
+        .badge-error {
+            background: rgba(255, 107, 107, 0.1);
+            color: var(--danger);
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text);
+            margin-top: 2px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            border: none;
+            background: var(--light);
+            color: var(--primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+
+        .action-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* EMPTY STATE */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .empty-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 8px;
+        }
+
+        .empty-text {
+            color: var(--text);
+            margin-bottom: 25px;
+        }
+
+        /* PAGINATION */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 25px;
+            padding-bottom: 25px;
+        }
+
+        .page-btn {
+            width: 36px;
+            height: 36px;
+            border: 2px solid var(--border);
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .page-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .page-btn:hover:not(.active) {
+            border-color: var(--primary);
+        }
+
+        /* LOADING */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: static;
+                padding: 15px 0;
+                margin-bottom: 20px;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .filters {
+                flex-direction: column;
+            }
+
+            .table {
+                font-size: 12px;
+            }
+
+            .table th,
+            .table td {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="sidebar-icon">FC</div>
+                FaxCloud
+            </div>
+            <nav class="sidebar-menu">
+                <a href="/" class="sidebar-item">📊 Dashboard</a>
+                <a href="/reports" class="sidebar-item active">📋 Rapports</a>
+                <a href="/admin" class="sidebar-item">⚙️ Admin</a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div class="header">
+                <div>
+                    <h1>Rapports FAX</h1>
+                    <div class="header-subtitle">Gérez tous vos rapports d'analyse FAX</div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary">📥 Importer</button>
+                    <button class="btn btn-primary">➕ Nouveau Rapport</button>
+                </div>
+            </div>
+
+            <div class="filters">
+                <div class="filter-group">
+                    <input type="text" class="filter-input" placeholder="🔍 Rechercher..." id="searchInput">
+                </div>
+                <div class="filter-group">
+                    <select class="filter-input" id="statusFilter">
+                        <option value="">Tous les statuts</option>
+                        <option value="completed">Complété</option>
+                        <option value="processing">En cours</option>
+                        <option value="error">Erreur</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <input type="date" class="filter-input" id="dateFilter">
+                </div>
+            </div>
+
+            <div class="reports-table">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Nom du Rapport</th>
+                            <th>Entrées</th>
+                            <th>Valides</th>
+                            <th>Erreurs</th>
+                            <th>Taux de Succès</th>
+                            <th>Statut</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportsTableBody">
+                        <tr>
+                            <td colspan="8" class="loading">
+                                <div class="spinner"></div>
+                                Chargement des rapports...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination" id="paginationContainer"></div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+        let currentPage = 1;
+        const itemsPerPage = 20;
+
+        async function loadReports(page = 1) {
+            try {
+                const offset = (page - 1) * itemsPerPage;
+                const response = await fetch(`${API_URL}/reports?limit=${itemsPerPage}&offset=${offset}`);
+                const reports = await response.json();
+                
+                displayReports(reports);
+                updatePagination(reports.length);
+            } catch (error) {
+                console.error('Erreur:', error);
+                document.getElementById('reportsTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <div class="empty-icon">⚠️</div>
+                            <div class="empty-title">Erreur de chargement</div>
+                            <div class="empty-text">Impossible de charger les rapports</div>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function displayReports(reports) {
+            const tbody = document.getElementById('reportsTableBody');
+            
+            if (reports.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <div class="empty-title">Aucun rapport</div>
+                            <div class="empty-text">Commencez par importer un fichier FAX</div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = reports.map(report => `
+                <tr>
+                    <td><span class="report-name">${report.name}</span></td>
+                    <td><span class="stat-value">${report.entries}</span></td>
+                    <td><span class="stat-value">${report.valid}</span></td>
+                    <td><span class="stat-value">${report.errors}</span></td>
+                    <td>
+                        <div class="stat-value">${(report.entries > 0 ? (report.valid / report.entries * 100).toFixed(1) : 0)}%</div>
+                    </td>
+                    <td>
+                        <span class="badge badge-${report.status === 'completed' ? 'success' : report.status === 'processing' ? 'processing' : 'error'}">
+                            ${report.status === 'completed' ? '✓ Complété' : report.status === 'processing' ? '⟳ En cours' : '✕ Erreur'}
+                        </span>
+                    </td>
+                    <td>${new Date(report.created_at).toLocaleDateString('fr-FR')}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="action-btn" title="Voir" onclick="viewReport(${report.id})">👁️</button>
+                            <button class="action-btn" title="Exporter" onclick="exportReport(${report.id})">📥</button>
+                            <button class="action-btn" title="Supprimer" onclick="deleteReport(${report.id})">🗑️</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updatePagination(reportCount) {
+            // Simplified pagination - can be enhanced
+        }
+
+        function viewReport(id) {
+            window.location.href = `/report/${id}`;
+        }
+
+        function exportReport(id) {
+            window.location.href = `/api/reports/${id}/export`;
+        }
+
+        function deleteReport(id) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer ce rapport ?')) {
+                // TODO: Implement delete
+                alert('Suppression à implémenter');
+            }
+        }
+
+        // Search
+        document.getElementById('searchInput').addEventListener('input', () => {
+            loadReports();
+        });
+
+        // Load initial data
+        loadReports();
+    </script>
+</body>
+</html>
