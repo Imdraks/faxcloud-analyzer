@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime
 
 from flask import Flask, render_template, request, jsonify, send_file
+from flask_compress import Compress
 from werkzeug.utils import secure_filename
 
 # Ajouter src au chemin Python
@@ -34,8 +35,13 @@ app = Flask(__name__,
     static_folder='static',
     static_url_path='/static')
 
+# Activer la compression GZIP pour réduire la bande passante
+Compress(app)
+
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
 app.config['UPLOAD_FOLDER'] = Config.IMPORTS_DIR
+app.config['COMPRESS_LEVEL'] = 6  # Compression niveau 6 (bon équilibre)
+app.config['COMPRESS_MIN_SIZE'] = 1024  # Compresser les réponses > 1KB
 
 # Setup logging
 Config.ensure_directories()
@@ -59,13 +65,16 @@ def get_db():
     return db
 
 # ═══════════════════════════════════════════════════════════════════════════
-# MIDDLEWARE NGROK
+# MIDDLEWARE NGROK & PERFORMANCE
 # ═══════════════════════════════════════════════════════════════════════════
 
 @app.after_request
 def add_ngrok_bypass_header(response):
-    """Ajoute le header pour contourner l'avertissement ngrok"""
+    """Ajoute le header pour contourner l'avertissement ngrok et optimisations"""
     response.headers['ngrok-skip-browser-warning'] = 'true'
+    # Headers de cache pour les assets statiques
+    if request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'public, max-age=86400'  # 1 jour
     return response
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -409,6 +418,100 @@ def api_report_data(report_id):
     except Exception as e:
         logger.error(f"Erreur report data: {e}")
         import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/report/<report_id>/entries', methods=['GET'])
+def api_report_entries_paginated(report_id):
+    """Récupérer les entrées FAX d'un rapport avec PAGINATION côté serveur (optimisé)"""
+    try:
+        db_conn = get_db()
+        if db_conn is None:
+            return jsonify({'error': 'Base de données indisponible'}), 503
+        
+        # Paramètres de pagination
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 20))
+        search = request.args.get('search', '').strip()
+        filter_type = request.args.get('filter', 'all')  # all, SF, RF, error
+        
+        page = max(1, page)
+        limit = max(1, min(100, limit))  # Max 100 par page
+        offset = (page - 1) * limit
+        
+        conn = db_conn.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Construire la requête SQL optimisée
+        where_clauses = ["report_id = %s"]
+        params = [report_id]
+        
+        # Filtrer par type
+        if filter_type == 'SF':
+            where_clauses.append("mode = 'SF'")
+        elif filter_type == 'RF':
+            where_clauses.append("mode = 'RF'")
+        elif filter_type == 'error':
+            where_clauses.append("valide = 0")
+        
+        # Recherche multi-champs (utilise les index!)
+        if search:
+            search_clause = """(
+                fax_id LIKE %s OR
+                utilisateur LIKE %s OR
+                numero_original LIKE %s OR
+                numero_normalise LIKE %s
+            )"""
+            where_clauses.append(search_clause)
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param, search_param, search_param])
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Requête optimisée avec COUNT en même temps
+        count_query = f"SELECT COUNT(*) as total FROM fax_entries WHERE {where_sql}"
+        cursor.execute(count_query, params)
+        total = cursor.fetchone()['total']
+        
+        # Requête pour les données avec pagination
+        data_query = f"""
+            SELECT id, fax_id, utilisateur, mode, date_heure, numero_original,
+                   numero_normalise, pages, valide, erreurs
+            FROM fax_entries
+            WHERE {where_sql}
+            ORDER BY date_heure DESC
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(data_query, params + [limit, offset])
+        entries = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Calculer les stats pour ce filtre
+        stats = {}
+        if entries:
+            success = sum(1 for e in entries if e['valide'] == 1)
+            errors = sum(1 for e in entries if e['valide'] == 0)
+            stats = {
+                'success': success,
+                'errors': errors,
+                'success_rate': round((success / len(entries)) * 100, 1) if entries else 0
+            }
+        
+        return jsonify({
+            'entries': entries,
+            'total': total,
+            'page': page,
+            'limit': limit,
+            'pages': (total + limit - 1) // limit,
+            'stats': stats
+        })
+    except Exception as e:
+        logger.error(f"Erreur entries paginated: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
