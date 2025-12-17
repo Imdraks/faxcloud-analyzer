@@ -1,24 +1,26 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import logging
 from pathlib import Path
 
 from werkzeug.utils import secure_filename
 
-from flask import Flask, abort, jsonify, render_template, request, send_file, send_from_directory
+from flask import Flask, Response, abort, jsonify, render_template, request, send_file
 
 from src.core import (
     analyze_data,
     generate_report,
     get_all_reports,
-    get_report_by_id,
     import_faxcloud_export,
     init_database,
     insert_report_to_db,
     settings,
 )
 from src.core.config import configure_logging, ensure_directories
+from src.core.db import delete_report, get_report_by_id, get_report_entries, get_report_summary_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +141,113 @@ def create_app() -> Flask:
 
     @app.route("/api/report/<report_id>", methods=["GET"])
     def api_report(report_id: str):
-        report = _ensure_report_derived_fields(get_report_by_id(report_id))
+        include_entries = request.args.get("include_entries") in {"1", "true", "yes"}
+        if include_entries:
+            report = _ensure_report_derived_fields(get_report_by_id(report_id))
+        else:
+            report = _ensure_report_derived_fields(get_report_summary_by_id(report_id))
         if not report:
             return {"error": "Rapport non trouvé"}, 404
         return jsonify(report)
+
+    @app.route("/api/report/<report_id>/entries", methods=["GET"])
+    def api_report_entries(report_id: str):
+        offset = request.args.get("offset", 0)
+        limit = request.args.get("limit", 200)
+        try:
+            offset_i = int(offset)
+        except Exception:
+            offset_i = 0
+        try:
+            limit_i = int(limit)
+        except Exception:
+            limit_i = 200
+
+        rows, total = get_report_entries(report_id, offset=offset_i, limit=limit_i)
+        return jsonify({
+            "report_id": report_id,
+            "offset": offset_i,
+            "limit": limit_i,
+            "total": total,
+            "entries": rows,
+        })
+
+    @app.route("/api/report/<report_id>/export.json", methods=["GET"])
+    def api_report_export_json(report_id: str):
+        # Par défaut: summary + stats dérivées (léger). `include_entries=1` pour complet.
+        include_entries = request.args.get("include_entries") in {"1", "true", "yes"}
+        if include_entries:
+            report = _ensure_report_derived_fields(get_report_by_id(report_id))
+        else:
+            report = _ensure_report_derived_fields(get_report_summary_by_id(report_id))
+
+        if not report:
+            return {"error": "Rapport non trouvé"}, 404
+        return jsonify(report)
+
+    @app.route("/api/report/<report_id>/export.csv", methods=["GET"])
+    def api_report_export_csv(report_id: str):
+        # Export CSV streaming des entrées
+        report = get_report_summary_by_id(report_id)
+        if not report:
+            return {"error": "Rapport non trouvé"}, 404
+
+        def generate():
+            buffer = io.StringIO()
+            writer = csv.writer(buffer, delimiter=";")
+            writer.writerow([
+                "id",
+                "fax_id",
+                "utilisateur",
+                "type",
+                "numero_original",
+                "numero_normalise",
+                "valide",
+                "pages",
+                "datetime",
+                "erreurs",
+            ])
+            yield buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+
+            offset = 0
+            page_size = 2000
+            while True:
+                rows, total = get_report_entries(report_id, offset=offset, limit=page_size)
+                if not rows:
+                    break
+                for r in rows:
+                    writer.writerow([
+                        r.get("id"),
+                        r.get("fax_id"),
+                        r.get("utilisateur"),
+                        r.get("type"),
+                        r.get("numero_original"),
+                        r.get("numero_normalise"),
+                        r.get("valide"),
+                        r.get("pages"),
+                        r.get("datetime"),
+                        r.get("erreurs"),
+                    ])
+                    yield buffer.getvalue()
+                    buffer.seek(0)
+                    buffer.truncate(0)
+                offset += len(rows)
+                if offset >= total:
+                    break
+
+        filename = f"faxcloud_report_{report_id}.csv"
+        headers = {
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Type": "text/csv; charset=utf-8",
+        }
+        return Response(generate(), headers=headers)
+
+    @app.route("/api/report/<report_id>", methods=["DELETE"])
+    def api_report_delete(report_id: str):
+        delete_report(report_id)
+        return {"success": True, "deleted": report_id}, 200
 
     @app.route("/api/report/<report_id>/qr", methods=["GET"])
     def api_report_qr(report_id: str):
