@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+import hashlib
 from typing import Dict, List, Optional, Tuple
 
 from .config import settings, ensure_directories
@@ -35,6 +36,9 @@ def init_database() -> None:
             taux_reussite REAL,
             qr_path TEXT,
             url_rapport TEXT,
+            source_filename TEXT,
+            source_filesize INTEGER,
+            source_sha256 TEXT,
             created_at TEXT
         )
         """
@@ -58,10 +62,30 @@ def init_database() -> None:
         """
     )
     conn.commit()
+
+    # Migrations légères (anciens fichiers DB) : ajout des colonnes si absentes.
+    # SQLite ne supporte pas IF NOT EXISTS sur ADD COLUMN partout.
+    for stmt in (
+        "ALTER TABLE reports ADD COLUMN source_filename TEXT",
+        "ALTER TABLE reports ADD COLUMN source_filesize INTEGER",
+        "ALTER TABLE reports ADD COLUMN source_sha256 TEXT",
+    ):
+        try:
+            cur.execute(stmt)
+        except sqlite3.OperationalError:
+            pass
+
     conn.close()
 
 
-def insert_report_to_db(report_id: str, report_json: Dict, qr_path: Optional[str]) -> None:
+def insert_report_to_db(
+    report_id: str,
+    report_json: Dict,
+    qr_path: Optional[str],
+    source_filename: Optional[str] = None,
+    source_filesize: Optional[int] = None,
+    source_sha256: Optional[str] = None,
+) -> None:
     conn = _connect()
     cur = conn.cursor()
     stats = report_json.get("statistics", {})
@@ -71,7 +95,8 @@ def insert_report_to_db(report_id: str, report_json: Dict, qr_path: Optional[str
             id, date_rapport, contract_id, date_debut, date_fin,
             total_fax, fax_envoyes, fax_recus, pages_totales, erreurs_totales,
             taux_reussite, qr_path, url_rapport, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            , source_filename, source_filesize, source_sha256
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             report_json.get("report_id"),
@@ -88,6 +113,9 @@ def insert_report_to_db(report_id: str, report_json: Dict, qr_path: Optional[str
             qr_path,
             report_json.get("url_rapport"),
             report_json.get("timestamp"),
+            source_filename,
+            source_filesize,
+            source_sha256,
         ),
     )
 
@@ -124,7 +152,8 @@ def get_all_reports() -> List[Dict]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, contract_id, date_debut, date_fin, total_fax, erreurs_totales, taux_reussite
+        SELECT id, contract_id, date_debut, date_fin, total_fax, erreurs_totales, taux_reussite,
+               source_filename, source_filesize, source_sha256
         FROM reports
         ORDER BY created_at DESC
         """

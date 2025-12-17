@@ -5,6 +5,7 @@ import csv
 import io
 import logging
 from pathlib import Path
+import hashlib
 
 from werkzeug.utils import secure_filename
 
@@ -274,6 +275,21 @@ def create_app() -> Flask:
         filepath = Path(app.config["UPLOAD_FOLDER"]) / filename
         f.save(str(filepath))
 
+        # Traçabilité fichier (utile pour un produit vendable)
+        try:
+            size = filepath.stat().st_size
+        except Exception:
+            size = None
+        sha256 = None
+        try:
+            h = hashlib.sha256()
+            with open(filepath, "rb") as fp:
+                for chunk in iter(lambda: fp.read(1024 * 1024), b""):
+                    h.update(chunk)
+            sha256 = h.hexdigest()
+        except Exception:
+            sha256 = None
+
         contract_id = request.form.get("contract") or None
         date_debut = request.form.get("start") or None
         date_fin = request.form.get("end") or None
@@ -281,7 +297,14 @@ def create_app() -> Flask:
         rows = import_faxcloud_export(str(filepath))
         analysis = analyze_data(rows, contract_id, date_debut, date_fin)
         report_data = generate_report(analysis)
-        insert_report_to_db(report_data["report_id"], report_data, report_data.get("qr_path"))
+        insert_report_to_db(
+            report_data["report_id"],
+            report_data,
+            report_data.get("qr_path"),
+            source_filename=filename,
+            source_filesize=size,
+            source_sha256=sha256,
+        )
 
         stats = report_data.get("statistics", {})
         return {

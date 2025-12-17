@@ -32,7 +32,18 @@ def cmd_import(args: argparse.Namespace) -> None:
     rows = import_faxcloud_export(args.file)
     analysis = analyze_data(rows, args.contract, args.start, args.end)
     report = generate_report(analysis, include_qr=not args.no_qr)
-    insert_report_to_db(report["report_id"], report, report.get("qr_path"))
+    try:
+        p = Path(args.file)
+        size = p.stat().st_size if p.exists() else None
+    except Exception:
+        size = None
+    insert_report_to_db(
+        report["report_id"],
+        report,
+        report.get("qr_path"),
+        source_filename=Path(args.file).name,
+        source_filesize=size,
+    )
     print(f"✓ Rapport généré: {report['report_id']}")
 
 
