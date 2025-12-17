@@ -151,10 +151,6 @@ def api_upload_progress(session_id):
 def index():
     """Page d'accueil - Dashboard moderne"""
     return render_template('dashboard.html')
-        return render_template('index.html', stats=stats)
-    except Exception as e:
-        logger.error(f"Erreur index: {e}")
-        return render_template('index.html', stats={})
 
 
 @app.route('/reports', methods=['GET'])
