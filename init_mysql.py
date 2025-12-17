@@ -80,7 +80,7 @@ def check_tables():
         cursor.execute("""
             SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
             WHERE TABLE_SCHEMA = %s
-        """, (Config.MYSQL_CONFIG['database'],))
+        """, (Config.DATABASE_CONFIG['database'],))
         
         tables = [row[0] for row in cursor.fetchall()]
         
