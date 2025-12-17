@@ -31,18 +31,6 @@ class FaxApp {
         const formData = new FormData();
         formData.append('file', file);
 
-        const contractInput = document.getElementById('contractInput');
-        const startInput = document.getElementById('startInput');
-        const endInput = document.getElementById('endInput');
-
-        const contract = contractInput?.value?.trim();
-        const start = startInput?.value?.trim();
-        const end = endInput?.value?.trim();
-
-        if (contract) formData.append('contract', contract);
-        if (start) formData.append('start', start);
-        if (end) formData.append('end', end);
-
         const msgDiv = document.getElementById('uploadMessage');
         const progressDiv = document.getElementById('uploadProgress');
         
