@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FaxCloud Analyzer - Analyseur intelligent de fichiers FAX">
+    <meta name="theme-color" content="#3b82f6">
+    <title>FaxCloud Analyzer - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER PREMIUM -->
+        <header class="header">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <div>
+                    <h1>📊 FaxCloud Analyzer</h1>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.8; font-size: 0.95rem;">Tableau de bord d'analyse des FAX</p>
+                </div>
+                <div style="text-align: right; font-size: 0.9rem; opacity: 0.7;">
+                    <div id="currentTime" style="font-weight: 600; margin-bottom: 0.25rem;"></div>
+                    <div id="serverStatus" style="display: flex; align-items: center; gap: 0.5rem; justify-content: flex-end;">
+                        <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                        Connecté
+                    </div>
+                </div>
+            </div>
+            <nav style="display: flex; gap: 1rem;">
+                <a href="/" class="nav-link active">Dashboard</a>
+                <a href="/reports" class="nav-link">Rapports</a>
+            </nav>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <main class="main" style="padding: 2rem;">
+
+            <!-- SECTION IMPORT AMÉLIORÉE -->
+            <section class="section" style="margin-bottom: 3rem;">
+                <h2 style="margin-bottom: 1.5rem;">📥 Importer un Fichier</h2>
+                
+                <div class="drag-drop-zone" id="dragDropZone" style="border: 2px dashed rgba(59, 130, 246, 0.5); background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(139, 92, 246, 0.02));">
+                    <div class="drag-drop-icon" style="font-size: 3rem; margin-bottom: 1rem;">📄</div>
+                    <p style="font-size: 1.1rem; margin-bottom: 0.5rem;"><strong>Glissez-déposez votre fichier ici</strong></p>
+                    <p class="text-or" style="margin: 1rem 0;">ou</p>
+                    <label for="fileInput" class="btn" style="display: inline-block;">Sélectionner un fichier</label>
+                    <input type="file" id="fileInput" accept=".csv,.xlsx" style="display: none;">
+                    <p style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.7;">Format: CSV, XLSX (max 100MB)</p>
+                </div>
+
+                <!-- PROGRESS BAR PREMIUM -->
+                <div id="uploadProgress" class="hidden" style="margin-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                        <p style="margin: 0; font-weight: 600;">Importation en cours...</p>
+                        <p id="progressText" style="margin: 0; opacity: 0.7;"></p>
+                    </div>
+                    <div class="progress-bar" style="height: 8px; border-radius: 10px; background: rgba(255,255,255,0.1); overflow: hidden;">
+                        <div class="progress-fill" id="progressFill" style="height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 10px; width: 0%; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+
+                <!-- MESSAGES -->
+                <div id="uploadMessage" style="margin-top: 1rem;"></div>
+            </section>
+
+            <!-- STATISTIQUES GLOBALES -->
+            <section style="margin-bottom: 3rem;">
+                <h2 style="margin-bottom: 1.5rem;">📈 Vue d'Ensemble</h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card success">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-label">Total FAX</div>
+                                <div class="stat-value" id="totalFaxStat">0</div>
+                            </div>
+                            <div class="stat-icon">📊</div>
+                        </div>
+                        <div class="stat-change positive">
+                            <span>↑</span> Tous les fichiers
+                        </div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-label">FAX Envoyés</div>
+                                <div class="stat-value" id="sentFaxStat">0</div>
+                            </div>
+                            <div class="stat-icon">📤</div>
+                        </div>
+                        <div class="stat-change positive">
+                            <span id="sentPercent">0%</span> du total
+                        </div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-label">FAX Reçus</div>
+                                <div class="stat-value" id="receivedFaxStat">0</div>
+                            </div>
+                            <div class="stat-icon">📥</div>
+                        </div>
+                        <div class="stat-change positive">
+                            <span id="receivedPercent">0%</span> du total
+                        </div>
+                    </div>
+
+                    <div class="stat-card danger">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-label">Erreurs</div>
+                                <div class="stat-value" id="errorFaxStat">0</div>
+                            </div>
+                            <div class="stat-icon">⚠️</div>
+                        </div>
+                        <div class="stat-change">
+                            <span id="errorPercent">0%</span> du total
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RAPPORTS RÉCENTS -->
+            <section style="margin-bottom: 3rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2>📋 Derniers Rapports</h2>
+                    <a href="/reports" style="color: var(--text-light); text-decoration: none; font-size: 0.9rem; opacity: 0.7; transition: all 0.3s;">
+                        Voir tous →
+                    </a>
+                </div>
+
+                <div id="reportsContainer" class="reports-grid">
+                    <!-- Cartes dynamiques -->
+                </div>
+
+                <style>
+                    .reports-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                        gap: 1.5rem;
+                    }
+
+                    .report-card {
+                        background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.1));
+                        backdrop-filter: blur(15px);
+                        border: 1px solid rgba(255, 255, 255, 0.15);
+                        border-radius: 16px;
+                        padding: 1.5rem;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        cursor: pointer;
+                        position: relative;
+                        overflow: hidden;
+                    }
+
+                    .report-card::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.05));
+                        opacity: 0;
+                        transition: opacity 0.3s ease;
+                    }
+
+                    .report-card:hover {
+                        transform: translateY(-8px);
+                        border-color: rgba(59, 130, 246, 0.5);
+                        background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.15));
+                        box-shadow: 0 12px 40px rgba(59, 130, 246, 0.2);
+                    }
+
+                    .report-card-content {
+                        position: relative;
+                        z-index: 1;
+                    }
+
+                    .report-date {
+                        font-size: 0.85rem;
+                        opacity: 0.7;
+                        margin-bottom: 1rem;
+                    }
+
+                    .report-stats {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 0.75rem;
+                        margin: 1rem 0;
+                    }
+
+                    .stat-item {
+                        text-align: center;
+                        padding: 0.5rem;
+                        background: rgba(0, 0, 0, 0.2);
+                        border-radius: 8px;
+                        border: 1px solid rgba(255, 255, 255, 0.05);
+                    }
+
+                    .stat-label {
+                        font-size: 0.7rem;
+                        opacity: 0.6;
+                        text-transform: uppercase;
+                        margin-bottom: 0.2rem;
+                    }
+
+                    .stat-value {
+                        font-size: 1.1rem;
+                        font-weight: 700;
+                        background: linear-gradient(135deg, #60a5fa, #a78bfa);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;
+                    }
+
+                    .report-actions {
+                        display: flex;
+                        gap: 0.5rem;
+                        margin-top: 1rem;
+                    }
+
+                    .report-btn {
+                        flex: 1;
+                        padding: 0.6rem;
+                        border: none;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        font-size: 0.85rem;
+                    }
+
+                    .report-btn-primary {
+                        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                        color: white;
+                    }
+
+                    .report-btn-primary:hover {
+                        transform: scale(1.05);
+                        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+                    }
+
+                    .report-btn-secondary {
+                        background: rgba(255, 255, 255, 0.1);
+                        color: var(--text);
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                    }
+
+                    .report-btn-secondary:hover {
+                        background: rgba(255, 255, 255, 0.15);
+                    }
+
+                    .no-reports {
+                        text-align: center;
+                        padding: 3rem;
+                        opacity: 0.6;
+                        grid-column: 1 / -1;
+                    }
+
+                    @media (max-width: 768px) {
+                        .reports-grid {
+                            grid-template-columns: 1fr;
+                        }
+                    }
+                </style>
+            </section>
+
+            <!-- ACTIONS RAPIDES -->
+            <section style="margin-bottom: 3rem;">
+                <h2 style="margin-bottom: 1.5rem;">⚡ Actions Rapides</h2>
+                <div class="quick-actions">
+                    <button class="action-button" id="exportAllBtn" onclick="exportAllReports()">
+                        <span class="action-icon">📥</span>
+                        <span>Exporter Tout</span>
+                    </button>
+                    <button class="action-button" id="statsBtn" onclick="showDetailedStats()">
+                        <span class="action-icon">📊</span>
+                        <span>Statistiques Détaillées</span>
+                    </button>
+                    <button class="action-button" id="clearBtn" onclick="clearAllData()" style="border-color: rgba(239, 68, 68, 0.3); background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));">
+                        <span class="action-icon">🗑️</span>
+                        <span>Effacer Données</span>
+                    </button>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+            <p>FaxCloud Analyzer v2.0 | © 2025 | <a href="#" style="color: inherit; opacity: 0.6; text-decoration: none;">Documentation</a> • <a href="#" style="color: inherit; opacity: 0.6; text-decoration: none;">API</a></p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app-dashboard.js') }}"></script>
+</body>
+</html>
