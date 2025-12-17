@@ -31,6 +31,12 @@ from core.cache_service import cache_service
 from core.api_service import api_service, ApiResponse
 from core.validation_service import FILTER_SCHEMA, ValidationError
 
+# Importer les routes v2 API
+try:
+    from web.api_v2 import register_api_v2_routes
+except ImportError:
+    register_api_v2_routes = None
+
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION FLASK
 # ═══════════════════════════════════════════════════════════════════════════
@@ -759,6 +765,19 @@ def not_found(e):
 def server_error(e):
     return render_template('500.html'), 500
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ENREGISTREMENT DES ROUTES V2 API
+# ═══════════════════════════════════════════════════════════════════════════
+
+if register_api_v2_routes:
+    try:
+        register_api_v2_routes(app, get_db, logger, cache_service, api_service)
+        logger.info("Routes API v2 enregistrées avec succès")
+    except Exception as e:
+        logger.warning(f"Impossible d'enregistrer les routes v2: {e}")
+else:
+    logger.warning("Module api_v2 non disponible")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # LANCEMENT
