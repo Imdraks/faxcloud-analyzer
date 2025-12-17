@@ -1,30 +1,24 @@
 @echo off
 REM =============================================================================
-REM FaxCloud Analyzer - Demarrage du serveur web
+REM FaxCloud Analyzer v3.0 - Demarrage du serveur web
 REM =============================================================================
 
 cd /d "%~dp0"
 
 REM Activer l'environnement virtuel
-call venv\Scripts\activate.bat
+call .venv\Scripts\activate.bat
 
-REM Initialiser la base de donnees MySQL
-echo.
-echo [*] Initialisation de la base de donnees MySQL...
-python init_mysql.py
-echo.
-
-REM Demarrer le serveur Flask avec ngrok
+REM Demarrer le serveur Flask
 echo.
 echo =========================================
-echo  Demarrage du serveur FaxCloud Analyzer
+echo  FaxCloud Analyzer v3.0
+echo  Serveur demarrage...
 echo =========================================
 echo.
-echo Ouverture: http://localhost:5000
+echo Ouverture: http://127.0.0.1:5000
 echo.
 
-REM Lancer en mode ngrok
-set USE_NGROK=true
-python web/app.py
+REM Lancer la nouvelle application
+python run.py
 
 pause

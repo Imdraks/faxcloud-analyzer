@@ -17,13 +17,17 @@ from werkzeug.utils import secure_filename
 # Ajouter src au chemin Python
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from core.config import Config
-from core.importer import FileImporter
-from core.analyzer import FaxAnalyzer
-from core.reporter import ReportGenerator
-from core.pdf_generator import PDFReportGenerator
-from core.db_mysql import DatabaseMySQL
-from core.ngrok_helper import NgrokHelper
+# ⚠️ NOTE: Imports de l'ancienne structure commentés
+# La nouvelle application se trouve dans app/run.py
+# Pour démarrer: python run.py
+
+# from core.config import Config
+# from core.importer import FileImporter
+# from core.analyzer import FaxAnalyzer
+# from core.reporter import ReportGenerator
+# from core.pdf_generator import PDFReportGenerator
+# from core.db_mysql import DatabaseMySQL
+# from core.ngrok_helper import NgrokHelper
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION FLASK

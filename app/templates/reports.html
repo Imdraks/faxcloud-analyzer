@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapports - FaxCloud Analyzer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1>📊 FaxCloud Analyzer</h1>
+                <nav class="nav">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/reports" class="nav-link active">Rapports</a>
+                    <a href="/admin" class="nav-link">Admin</a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="main">
+            <h2>Liste des Rapports</h2>
+            
+            <div class="filters">
+                <input type="text" id="search" placeholder="Rechercher un rapport...">
+                <select id="status-filter">
+                    <option value="">Tous les statuts</option>
+                    <option value="completed">Complétés</option>
+                    <option value="error">Erreurs</option>
+                    <option value="pending">En attente</option>
+                </select>
+            </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nom</th>
+                        <th>Date</th>
+                        <th>Entrées</th>
+                        <th>Taille</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="reports-body">
+                    <tr><td colspan="7" class="text-center">Chargement...</td></tr>
+                </tbody>
+            </table>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 FaxCloud Analyzer v3.0</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/reports.js"></script>
+    <script>
+        async function loadReports() {
+            try {
+                const response = await fetch('/api/reports?limit=100');
+                const reports = await response.json();
+                const tbody = document.getElementById('reports-body');
+                tbody.innerHTML = '';
+                
+                reports.forEach(report => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${report.id}</td>
+                            <td>${report.name}</td>
+                            <td>${new Date(report.created_at).toLocaleDateString()}</td>
+                            <td>${report.entry_count}</td>
+                            <td>${(report.file_size / 1024 / 1024).toFixed(2)} MB</td>
+                            <td><span class="badge badge-success">Complété</span></td>
+                            <td>
+                                <a href="/report/${report.id}" class="btn btn-sm">Voir</a>
+                                <button onclick="exportReport(${report.id})" class="btn btn-sm btn-secondary">Export</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+
+        function exportReport(id) {
+            window.location.href = `/api/reports/${id}/export`;
+        }
+
+        document.addEventListener('DOMContentLoaded', loadReports);
+    </script>
+</body>
+</html>

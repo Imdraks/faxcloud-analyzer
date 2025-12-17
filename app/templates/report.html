@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Détail du Rapport - FaxCloud Analyzer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1>📊 FaxCloud Analyzer</h1>
+                <nav class="nav">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/reports" class="nav-link active">Rapports</a>
+                    <a href="/admin" class="nav-link">Admin</a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="report-header">
+                <div>
+                    <h2 id="report-name">Chargement...</h2>
+                    <p id="report-date" class="text-muted">Date: -</p>
+                </div>
+                <div class="report-actions">
+                    <button class="btn" onclick="exportReport()">💾 Exporter</button>
+                    <button class="btn btn-secondary" onclick="goBack()">← Retour</button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Entrées</h3>
+                    <p class="stat-value" id="total-entries">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Réussies</h3>
+                    <p class="stat-value" id="success-count">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Erreurs</h3>
+                    <p class="stat-value" id="error-count">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Taux de Succès</h3>
+                    <p class="stat-value" id="success-rate">0%</p>
+                </div>
+            </section>
+
+            <!-- Chart -->
+            <section class="chart-container">
+                <h3>Distribution des Statuts</h3>
+                <canvas id="statusChart"></canvas>
+            </section>
+
+            <!-- Entries Table -->
+            <section class="entries-section">
+                <h3>Entrées du Rapport</h3>
+                <div class="table-controls">
+                    <input type="text" id="search" placeholder="Rechercher une entrée...">
+                    <select id="status-filter">
+                        <option value="">Tous</option>
+                        <option value="success">Réussis</option>
+                        <option value="error">Erreurs</option>
+                    </select>
+                </div>
+
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Données</th>
+                            <th>Statut</th>
+                            <th>Message</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="entries-body">
+                        <tr><td colspan="5" class="text-center">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 FaxCloud Analyzer v3.0</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/report.js"></script>
+    <script>
+        const reportId = window.location.pathname.split('/').pop();
+
+        async function loadReport() {
+            try {
+                const response = await fetch(`/api/reports/${reportId}`);
+                if (!response.ok) throw new Error('Rapport non trouvé');
+                
+                const report = await response.json();
+                document.getElementById('report-name').textContent = report.name;
+                document.getElementById('report-date').textContent = `Date: ${new Date(report.created_at).toLocaleDateString()}`;
+                document.getElementById('total-entries').textContent = report.entry_count;
+                
+                // Calculer les stats
+                await loadEntries();
+            } catch (error) {
+                document.getElementById('report-name').textContent = 'Erreur: Rapport non trouvé';
+            }
+        }
+
+        async function loadEntries() {
+            try {
+                const response = await fetch(`/api/reports/${reportId}/entries?limit=100`);
+                const entries = await response.json();
+                
+                const tbody = document.getElementById('entries-body');
+                tbody.innerHTML = '';
+                
+                let successCount = 0, errorCount = 0;
+                
+                entries.forEach(entry => {
+                    if (entry.status === 'success') successCount++;
+                    else errorCount++;
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${entry.id}</td>
+                            <td>${entry.data.substring(0, 50)}...</td>
+                            <td><span class="badge badge-${entry.status === 'success' ? 'success' : 'error'}">${entry.status}</span></td>
+                            <td>${entry.message || '-'}</td>
+                            <td>${new Date(entry.created_at).toLocaleDateString()}</td>
+                        </tr>
+                    `;
+                });
+                
+                document.getElementById('success-count').textContent = successCount;
+                document.getElementById('error-count').textContent = errorCount;
+                document.getElementById('success-rate').textContent = 
+                    Math.round((successCount / (successCount + errorCount) * 100)) + '%';
+                
+                initChart(successCount, errorCount);
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+
+        function initChart(success, error) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Réussis', 'Erreurs'],
+                    datasets: [{
+                        data: [success, error],
+                        backgroundColor: ['#00d4ff', '#ff006e']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+
+        function exportReport() {
+            window.location.href = `/api/reports/${reportId}/export`;
+        }
+
+        function goBack() {
+            window.history.back();
+        }
+
+        document.addEventListener('DOMContentLoaded', loadReport);
+    </script>
+</body>
+</html>
