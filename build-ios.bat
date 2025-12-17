@@ -69,14 +69,9 @@ echo.
 REM Extraire le repo owner et name
 for /f "tokens=*" %%i in ('git config --get remote.origin.url') do set "REPO_URL=%%i"
 
-REM Extraire le owner du URL (https://github.com/OWNER/repo.git ou git@github.com:OWNER/repo.git)
-REM Remplacer les séparateurs pour parser facilement
-setlocal enabledelayedexpansion
-set "REPO_URL=!REPO_URL:@=!"
-set "REPO_URL=!REPO_URL::=/!"
-set "REPO_URL=!REPO_URL:.git=!"
-
-for /f "tokens=4 delims=/" %%i in ('echo !REPO_URL!') do (
+REM Extraire le owner du URL (https://github.com/OWNER/repo.git)
+REM Utilise PowerShell pour parser le URL proprement
+for /f "tokens=*" %%i in ('powershell -Command "[System.Uri]::new('%REPO_URL%').Segments[1].Trim('/')"') do (
     set "REPO_OWNER=%%i"
 )
 
