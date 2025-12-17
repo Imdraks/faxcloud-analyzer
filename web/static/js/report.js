@@ -211,6 +211,14 @@ class ReportApp {
         // Mettre à jour les boutons précédent/suivant
         document.getElementById('prevBtn').disabled = this.currentPage === 1;
         document.getElementById('nextBtn').disabled = this.currentPage === totalPages;
+        document.getElementById('firstBtn').disabled = this.currentPage === 1;
+        document.getElementById('lastBtn').disabled = this.currentPage === totalPages;
+        
+        document.getElementById('firstBtn').onclick = () => {
+            if (this.currentPage !== 1) {
+                this.goToPage(1);
+            }
+        };
         
         document.getElementById('prevBtn').onclick = () => {
             if (this.currentPage > 1) {
@@ -221,6 +229,12 @@ class ReportApp {
         document.getElementById('nextBtn').onclick = () => {
             if (this.currentPage < totalPages) {
                 this.goToPage(this.currentPage + 1);
+            }
+        };
+        
+        document.getElementById('lastBtn').onclick = () => {
+            if (this.currentPage !== totalPages) {
+                this.goToPage(totalPages);
             }
         };
     }

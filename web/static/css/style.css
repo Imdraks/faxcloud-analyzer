@@ -510,34 +510,49 @@ html, body {
 }
 
 .page-btn {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
     padding: 0;
-    background: rgba(255, 255, 255, 0.1);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.6));
     color: var(--text-light);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s ease;
-    font-weight: 600;
-    font-size: 0.9rem;
+    font-weight: 700;
+    font-size: 0.95rem;
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.page-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
 }
 
 .page-btn:hover:not(.active) {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: rgba(59, 130, 246, 0.5);
-    transform: scale(1.1);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(59, 130, 246, 0.15));
+    border-color: rgba(59, 130, 246, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    color: var(--text);
 }
 
 .page-btn.active {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(59, 130, 246, 0.5));
-    color: var(--text);
-    border-color: rgba(59, 130, 246, 0.8);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-    transform: scale(1.15);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.6));
+    color: #ffffff;
+    border-color: rgba(59, 130, 246, 1);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transform: translateY(-3px);
+    font-weight: 800;
 }
 
 #currentPageInfo {
