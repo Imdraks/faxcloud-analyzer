@@ -10,6 +10,13 @@ class ReportApp {
         this.currentFilter = 'all';
     }
 
+    // Helper pour les requêtes fetch avec header ngrok
+    async fetchWithNgrokHeader(url, options = {}) {
+        const headers = options.headers || {};
+        headers['ngrok-skip-browser-warning'] = '69420';
+        return fetch(url, { ...options, headers });
+    }
+
     async init() {
         if (this.loaded) return;  // Éviter les double-chargements
         this.loaded = true;
@@ -38,7 +45,7 @@ class ReportApp {
 
     async loadReportData() {
         try {
-            const response = await fetch(`/api/report/${this.reportId}/data`);
+            const response = await this.fetchWithNgrokHeader(`/api/report/${this.reportId}/data`);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -170,7 +177,7 @@ class ReportApp {
 
     async loadQRCode() {
         try {
-            const response = await fetch(`/api/report/${this.reportId}/qrcode`);
+            const response = await this.fetchWithNgrokHeader(`/api/report/${this.reportId}/qrcode`);
             if (response.ok) {
                 const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
