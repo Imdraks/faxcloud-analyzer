@@ -461,15 +461,59 @@ def api_report_qrcode(report_id):
 def api_report_pdf(report_id):
     """Générer et télécharger PDF du rapport"""
     try:
-        # Récupérer les données du rapport
-        response = api_report_data(report_id)
-        if response.status_code != 200:
+        # Récupérer les données du rapport directement
+        db_conn = get_db()
+        if db_conn is None:
+            return jsonify({'error': 'Base de données indisponible'}), 503
+        
+        conn = db_conn.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Récupérer le rapport
+        cursor.execute("""
+            SELECT id, date_rapport, fichier_source, total_fax, fax_envoyes, 
+                   fax_recus, erreurs_totales, taux_reussite
+            FROM reports
+            WHERE id = %s
+        """, (report_id,))
+        
+        report = cursor.fetchone()
+        if not report:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Rapport non trouvé'}), 404
         
-        report_data = response.get_json()
+        # Récupérer les entrées FAX
+        cursor.execute("""
+            SELECT id, fax_id, utilisateur, mode, date_heure, numero_original,
+                   numero_normalise, pages, valide, erreurs
+            FROM fax_entries
+            WHERE report_id = %s
+            ORDER BY date_heure DESC
+        """, (report_id,))
+        
+        entries = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Préparer les données pour le PDF
+        report_data = {
+            'id': report['id'],
+            'title': f"Rapport - {report['fichier_source']}",
+            'date': str(report['date_rapport']),
+            'total': report['total_fax'],
+            'sent': report['fax_envoyes'],
+            'received': report['fax_recus'],
+            'errors': report['erreurs_totales'],
+            'success_rate': report['taux_reussite'],
+            'entries': entries
+        }
         
         # Générer le PDF
         pdf_buffer = PDFReportGenerator.generate_pdf(report_data)
+        if pdf_buffer is None:
+            return jsonify({'error': 'Erreur lors de la génération du PDF'}), 500
+        
         pdf_buffer.seek(0)  # Remettre le curseur au début
         
         return send_file(
@@ -480,6 +524,8 @@ def api_report_pdf(report_id):
         )
     except Exception as e:
         logger.error(f"Erreur PDF: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
