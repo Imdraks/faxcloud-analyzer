@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FaxCloud Analyzer - Web Application
-Backend moderne avec Flask
+FaxCloud Analyzer - Web Application v2.0
+Backend moderne avec Flask - Architecture scalable
 """
 
 import sys
@@ -27,6 +27,9 @@ from core.reporter import ReportGenerator
 from core.pdf_generator import PDFReportGenerator
 from core.db_mysql import DatabaseMySQL
 from core.ngrok_helper import NgrokHelper
+from core.cache_service import cache_service
+from core.api_service import api_service, ApiResponse
+from core.validation_service import FILTER_SCHEMA, ValidationError
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION FLASK
@@ -44,6 +47,8 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
 app.config['UPLOAD_FOLDER'] = Config.IMPORTS_DIR
 app.config['COMPRESS_LEVEL'] = 6  # Compression niveau 6 (bon équilibre)
 app.config['COMPRESS_MIN_SIZE'] = 1024  # Compresser les réponses > 1KB
+app.config['JSON_SORT_KEYS'] = False
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
 # Setup logging
 Config.ensure_directories()
