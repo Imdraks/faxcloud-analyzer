@@ -1,9 +1,12 @@
 # FaxCloud Analyzer iOS - Podfile
 # CocoaPods dependency management
 
-platform :ios, '14.0'
+# FaxCloud Analyzer iOS - Podfile
+# CocoaPods dependency management
+# NOTE: This project uses Swift Package Manager (SPM) via Package.swift
+# CocoaPods is configured but not currently used
 
-project 'FaxCloudAnalyzer.xcodeproj'
+platform :ios, '14.0'
 
 target 'FaxCloudAnalyzer' do
   use_frameworks!
