@@ -71,36 +71,70 @@ class FaxApp {
     }
 
     async uploadFile(file) {
-        const formData = new FormData();
-        formData.append('file', file);
-
         try {
             // Afficher la barre de progression
             const progressDiv = document.getElementById('uploadProgress');
             progressDiv.classList.remove('hidden');
 
-            const response = await this.fetchWithNgrokHeader('/api/upload', {
-                method: 'POST',
-                body: formData
+            // Utiliser XMLHttpRequest pour avoir les événements de progression
+            const formData = new FormData();
+            formData.append('file', file);
+
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+
+                // Événement de progression
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        document.getElementById('progressFill').style.width = percentComplete + '%';
+                        document.getElementById('progressText').textContent = percentComplete + '%';
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            if (data.success) {
+                                this.showMessage('success', `✓ ${data.message}`);
+                                // Rediriger vers le rapport après 1 seconde
+                                setTimeout(() => {
+                                    window.location.href = `/report/${data.report_id}`;
+                                }, 1000);
+                            } else {
+                                this.showMessage('error', `✗ Erreur: ${data.error}`);
+                            }
+                        } catch (e) {
+                            this.showMessage('error', `✗ Erreur parse: ${e.message}`);
+                        }
+                        resolve();
+                    } else {
+                        reject(new Error(`HTTP ${xhr.status}`));
+                    }
+                });
+
+                xhr.addEventListener('error', () => {
+                    reject(new Error('Erreur réseau'));
+                });
+
+                xhr.addEventListener('abort', () => {
+                    reject(new Error('Upload annulé'));
+                });
+
+                // Ajouter header ngrok
+                xhr.setRequestHeader('ngrok-skip-browser-warning', '69420');
+
+                xhr.open('POST', '/api/upload', true);
+                xhr.send(formData);
+            }).finally(() => {
+                document.getElementById('uploadProgress').classList.add('hidden');
+                document.getElementById('progressFill').style.width = '0%';
+                document.getElementById('progressText').textContent = '0%';
             });
-
-            const data = await response.json();
-
-            if (data.success) {
-                this.showMessage('success', `✓ ${data.message}`);
-                // Rediriger vers le rapport après 1 seconde
-                setTimeout(() => {
-                    window.location.href = `/report/${data.report_id}`;
-                }, 1000);
-            } else {
-                this.showMessage('error', `✗ Erreur: ${data.error}`);
-            }
         } catch (error) {
             this.showMessage('error', `✗ Erreur upload: ${error.message}`);
-        } finally {
             document.getElementById('uploadProgress').classList.add('hidden');
-            document.getElementById('progressFill').style.width = '0%';
-            document.getElementById('progressText').textContent = '0%';
         }
     }
 

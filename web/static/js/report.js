@@ -8,6 +8,8 @@ class ReportApp {
         this.loaded = false;
         this.allEntries = [];
         this.currentFilter = 'all';
+        this.currentPage = 1;
+        this.entriesPerPage = 20;
     }
 
     // Helper pour les requêtes fetch avec header ngrok
@@ -89,6 +91,7 @@ class ReportApp {
 
     setFilter(filterType) {
         this.currentFilter = filterType;
+        this.currentPage = 1;  // Réinitialiser à la page 1
         
         // Mettre à jour les boutons
         document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -117,8 +120,15 @@ class ReportApp {
 
         if (!filteredEntries || filteredEntries.length === 0) {
             detailsDiv.innerHTML = '<p class="text-muted">Aucune entrée disponible</p>';
+            document.getElementById('paginationContainer').style.display = 'none';
             return;
         }
+
+        // Calculer la pagination
+        const totalPages = Math.ceil(filteredEntries.length / this.entriesPerPage);
+        const startIndex = (this.currentPage - 1) * this.entriesPerPage;
+        const endIndex = startIndex + this.entriesPerPage;
+        const pageEntries = filteredEntries.slice(startIndex, endIndex);
 
         // Créer le tableau
         let html = `
@@ -131,7 +141,6 @@ class ReportApp {
                         <th>Mode</th>
                         <th>Numéro</th>
                         <th>Pages</th>
-                        <th>Pages SF/RF</th>
                         <th>État</th>
                         <th>Erreurs</th>
                     </tr>
@@ -139,30 +148,21 @@ class ReportApp {
                 <tbody>
         `;
 
-        filteredEntries.forEach(entry => {
+        pageEntries.forEach(entry => {
             const status = entry.valide === 1 ? 'Succès' : 'Erreur';
             const statusColor = entry.valide === 1 ? '#10b981' : '#ef4444';
             const mode = entry.mode === 'SF' ? 'Envoyé' : entry.mode === 'RF' ? 'Reçu' : entry.mode;
-            
-            // Compter les pages SF et RF
-            const pagesSF = filteredEntries
-                .filter(e => e.mode === 'SF')
-                .reduce((sum, e) => sum + (e.pages || 0), 0);
-            const pagesRF = filteredEntries
-                .filter(e => e.mode === 'RF')
-                .reduce((sum, e) => sum + (e.pages || 0), 0);
             
             html += `
                 <tr>
                     <td>${entry.fax_id || '-'}</td>
                     <td>${entry.utilisateur || '-'}</td>
-                    <td>${entry.date_heure || '-'}</td>
+                    <td>${entry.date_heure ? new Date(entry.date_heure).toLocaleString('fr-FR') : '-'}</td>
                     <td>${mode}</td>
                     <td>${entry.numero_normalise || entry.numero_original || '-'}</td>
                     <td>${entry.pages || '-'}</td>
-                    <td>${pagesSF} / ${pagesRF}</td>
                     <td><span style="color: ${statusColor}; font-weight: bold;">${status}</span></td>
-                    <td>${entry.erreurs || '-'}</td>
+                    <td>${entry.erreurs ? (typeof entry.erreurs === 'string' ? entry.erreurs : JSON.stringify(entry.erreurs)) : '-'}</td>
                 </tr>
             `;
         });
@@ -173,6 +173,63 @@ class ReportApp {
         `;
 
         detailsDiv.innerHTML = html;
+
+        // Afficher et mettre à jour la pagination
+        this.updatePagination(totalPages, filteredEntries.length);
+    }
+
+    updatePagination(totalPages, totalEntries) {
+        const paginationContainer = document.getElementById('paginationContainer');
+        const pageButtonsDiv = document.getElementById('pageButtons');
+        const currentPageSpan = document.getElementById('currentPage');
+        const totalPagesSpan = document.getElementById('totalPages');
+
+        // Afficher le conteneur de pagination
+        paginationContainer.style.display = totalPages > 1 ? 'block' : 'none';
+
+        if (totalPages <= 1) return;
+
+        // Mettre à jour le texte
+        currentPageSpan.textContent = this.currentPage;
+        totalPagesSpan.textContent = totalPages;
+
+        // Créer les boutons de page
+        pageButtonsDiv.innerHTML = '';
+        
+        // Déterminer la plage de pages à afficher (max 10)
+        let startPage = Math.max(1, this.currentPage - 4);
+        let endPage = Math.min(totalPages, this.currentPage + 5);
+
+        for (let i = startPage; i <= endPage; i++) {
+            const btn = document.createElement('button');
+            btn.className = i === this.currentPage ? 'page-btn active' : 'page-btn';
+            btn.textContent = i;
+            btn.onclick = () => this.goToPage(i);
+            pageButtonsDiv.appendChild(btn);
+        }
+
+        // Mettre à jour les boutons précédent/suivant
+        document.getElementById('prevBtn').disabled = this.currentPage === 1;
+        document.getElementById('nextBtn').disabled = this.currentPage === totalPages;
+        
+        document.getElementById('prevBtn').onclick = () => {
+            if (this.currentPage > 1) {
+                this.goToPage(this.currentPage - 1);
+            }
+        };
+        
+        document.getElementById('nextBtn').onclick = () => {
+            if (this.currentPage < totalPages) {
+                this.goToPage(this.currentPage + 1);
+            }
+        };
+    }
+
+    goToPage(pageNumber) {
+        this.currentPage = pageNumber;
+        this.displayFilteredEntries();
+        // Scroll vers le haut du tableau
+        document.getElementById('reportDetails').scrollIntoView({ behavior: 'smooth' });
     }
 
     async loadQRCode() {

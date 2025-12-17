@@ -172,6 +172,16 @@
                 <div id="reportDetails" style="overflow-x: auto;">
                     <p class="text-muted">Chargement des détails...</p>
                 </div>
+                
+                <!-- PAGINATION -->
+                <div id="paginationContainer" style="margin-top: 2rem; text-align: center; display: none;">
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;">
+                        <button id="prevBtn" class="btn" style="margin-top: 0; padding: 0.5rem 1rem; font-size: 0.9rem;">← Précédent</button>
+                        <div id="pageButtons" style="display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: center;"></div>
+                        <button id="nextBtn" class="btn" style="margin-top: 0; padding: 0.5rem 1rem; font-size: 0.9rem;">Suivant →</button>
+                    </div>
+                    <p style="margin-top: 1rem; color: var(--text-light);">Page <span id="currentPage">1</span> de <span id="totalPages">1</span></p>
+                </div>
             </section>
         </main>
 
