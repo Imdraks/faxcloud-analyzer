@@ -27,6 +27,9 @@
                             <div class="report-item">
                                 <h3>{{ report.contract_id or 'Sans contrat' }}</h3>
                                 <p><strong>Période:</strong> {{ report.date_debut }} → {{ report.date_fin }}</p>
+                                {% if report.source_filename %}
+                                    <p class="text-muted"><strong>Fichier:</strong> {{ report.source_filename }}</p>
+                                {% endif %}
                                 <p><strong>FAX:</strong> {{ report.total_fax }} | <strong>Erreurs:</strong> {{ report.erreurs_totales }} | <strong>Taux:</strong> {{ report.taux_reussite }}%</p>
                                 <a href="/report/{{ report.id }}" class="btn">Voir détails →</a>
                             </div>

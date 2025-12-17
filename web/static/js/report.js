@@ -88,6 +88,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   const reportId = root?.getAttribute('data-report-id');
   if (!reportId) return;
 
+  const deleteBtn = document.getElementById('deleteReportBtn');
+  deleteBtn?.addEventListener('click', async () => {
+    const ok = confirm('Supprimer ce rapport ? Cette action est irréversible.');
+    if (!ok) return;
+    try {
+      deleteBtn.disabled = true;
+      const res = await fetch(`/api/report/${encodeURIComponent(reportId)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      window.location.href = '/reports';
+    } catch (e) {
+      alert(`Erreur suppression: ${e.message}`);
+    } finally {
+      deleteBtn.disabled = false;
+    }
+  });
+
   const entries = new ReportEntries(reportId);
   await entries.loadMore();
 });

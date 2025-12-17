@@ -21,6 +21,9 @@
             <section class="section">
                 <h2>{{ report.contract_id or 'Rapport' }}</h2>
                 <p><strong>Période:</strong> {{ report.date_debut or '—' }} → {{ report.date_fin or '—' }}</p>
+                {% if report.source_filename %}
+                    <p class="text-muted"><strong>Fichier:</strong> {{ report.source_filename }}</p>
+                {% endif %}
                 
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -72,6 +75,7 @@
                         <a class="btn" href="/api/report/{{ report.id }}/export.csv">Télécharger CSV</a>
                         <a class="btn" href="/api/report/{{ report.id }}/export.json">Télécharger JSON</a>
                         <button id="loadMoreBtn" class="btn" type="button">Charger plus</button>
+                        <button id="deleteReportBtn" class="btn" type="button">Supprimer rapport</button>
                     </div>
 
                     <p id="entriesStatus" class="text-muted" style="margin-top: 0.75rem;"></p>
