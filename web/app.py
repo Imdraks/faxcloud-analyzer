@@ -249,6 +249,10 @@ def api_upload():
             pages_sf = sum(e.get('pages', 0) or 0 for e in entries if e.get('mode') == 'SF')
             pages_rf = sum(e.get('pages', 0) or 0 for e in entries if e.get('mode') == 'RF')
             
+            # 40-60%: Création du rapport
+            if tracker:
+                tracker.update(50, 'Rapport créé', 'Insertion des données...')
+            
             logger.info(f"Import: {total_fax} FAX, SF={fax_envoyes} ({pages_sf} pages), RF={fax_recus} ({pages_rf} pages)")
             
             # Insérer le rapport
@@ -278,8 +282,8 @@ def api_upload():
             
             conn.commit()
             
-            # Maintenant insérer les entrées FAX
-            for entry in entries:
+            # 60-90%: Insérer les entrées FAX
+            for idx, entry in enumerate(entries):
                 try:
                     entry_id = str(uuid4())
                     
@@ -302,12 +306,20 @@ def api_upload():
                         entry.get('erreurs', '')  # erreurs
                     ))
                     saved_count += 1
+                    
+                    # Mettre à jour la progression tous les 100 entrées
+                    if idx % 100 == 0 and tracker:
+                        percent = 60 + (idx / len(entries)) * 30
+                        tracker.update(int(percent), f'Insertion', f'{idx}/{len(entries)} FAX...')
                 except Exception as e:
                     logger.warning(f"Erreur sauvegarde entrée: {e}")
             
             conn.commit()
             
-            # Ajouter une entrée dans analysis_history
+            # 90-95%: Ajouter une entrée dans analysis_history
+            if tracker:
+                tracker.update(90, 'Finalisation', 'Enregistrement de l\'analyse...')
+            
             try:
                 analysis_id = str(uuid4())
                 timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -341,6 +353,11 @@ def api_upload():
             logger.error(f"Erreur sauvegarde base: {e}")
             import traceback
             traceback.print_exc()
+        
+        # 95-100%: Finalisation
+        if tracker:
+            tracker.update(100, 'Terminé!', 'Import terminé avec succès')
+            tracker.close()
         
         return jsonify({
             'success': True,

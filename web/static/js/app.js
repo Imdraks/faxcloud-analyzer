@@ -72,23 +72,54 @@ class FaxApp {
 
     async uploadFile(file) {
         try {
+            // Générer une session_id unique
+            const sessionId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            
             // Afficher la barre de progression
             const progressDiv = document.getElementById('uploadProgress');
             progressDiv.classList.remove('hidden');
 
-            // Utiliser XMLHttpRequest pour avoir les événements de progression
+            // Ouvrir la connexion SSE AVANT d'uploader
+            const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    const percent = data.percent || 0;
+                    const step = data.step || 'Traitement';
+                    const message = data.message || '';
+                    
+                    document.getElementById('progressFill').style.width = percent + '%';
+                    document.getElementById('progressText').textContent = percent + '% - ' + step;
+                    
+                    // Fermer la SSE à 100%
+                    if (percent >= 100) {
+                        eventSource.close();
+                    }
+                } catch (e) {
+                    console.error('Erreur parsing SSE:', e);
+                }
+            };
+            
+            eventSource.onerror = () => {
+                console.error('Erreur SSE');
+                eventSource.close();
+            };
+
+            // PUIS envoyer l'upload avec XMLHttpRequest (0-30%)
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('session_id', sessionId);
 
             return new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
 
-                // Événement de progression
+                // Événement de progression UPLOAD (0-30%)
                 xhr.upload.addEventListener('progress', (e) => {
                     if (e.lengthComputable) {
-                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        const percentComplete = Math.round((e.loaded / e.total) * 30); // Max 30%
                         document.getElementById('progressFill').style.width = percentComplete + '%';
-                        document.getElementById('progressText').textContent = percentComplete + '%';
+                        document.getElementById('progressText').textContent = percentComplete + '% - Upload du fichier';
                     }
                 });
 
@@ -97,39 +128,40 @@ class FaxApp {
                         try {
                             const data = JSON.parse(xhr.responseText);
                             if (data.success) {
-                                this.showMessage('success', `✓ ${data.message}`);
-                                // Rediriger vers le rapport après 1 seconde
+                                // SSE va continuer jusqu'à 100%
                                 setTimeout(() => {
                                     window.location.href = `/report/${data.report_id}`;
-                                }, 1000);
+                                }, 2000); // Attendre que SSE atteigne 100%
                             } else {
                                 this.showMessage('error', `✗ Erreur: ${data.error}`);
+                                eventSource.close();
                             }
                         } catch (e) {
                             this.showMessage('error', `✗ Erreur parse: ${e.message}`);
+                            eventSource.close();
                         }
                         resolve();
                     } else {
                         reject(new Error(`HTTP ${xhr.status}`));
+                        eventSource.close();
                     }
                 });
 
                 xhr.addEventListener('error', () => {
                     reject(new Error('Erreur réseau'));
+                    eventSource.close();
                 });
 
                 xhr.addEventListener('abort', () => {
                     reject(new Error('Upload annulé'));
+                    eventSource.close();
                 });
 
                 xhr.open('POST', '/api/upload', true);
-                // Ajouter header ngrok APRÈS open()
                 xhr.setRequestHeader('ngrok-skip-browser-warning', '69420');
                 xhr.send(formData);
             }).finally(() => {
-                document.getElementById('uploadProgress').classList.add('hidden');
-                document.getElementById('progressFill').style.width = '0%';
-                document.getElementById('progressText').textContent = '0%';
+                // Garder la barre visible jusqu'à ce que SSE la ferme
             });
         } catch (error) {
             this.showMessage('error', `✗ Erreur upload: ${error.message}`);
