@@ -6,7 +6,7 @@ REM ============================================================================
 cd /d "%~dp0"
 
 REM Activer l'environnement virtuel
-call venv\Scripts\activate.bat
+call .venv\Scripts\activate.bat
 
 REM Initialiser la base de donnees MySQL
 echo.

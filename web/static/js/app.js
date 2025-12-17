@@ -122,10 +122,9 @@ class FaxApp {
                     reject(new Error('Upload annulé'));
                 });
 
-                // Ajouter header ngrok
-                xhr.setRequestHeader('ngrok-skip-browser-warning', '69420');
-
                 xhr.open('POST', '/api/upload', true);
+                // Ajouter header ngrok APRÈS open()
+                xhr.setRequestHeader('ngrok-skip-browser-warning', '69420');
                 xhr.send(formData);
             }).finally(() => {
                 document.getElementById('uploadProgress').classList.add('hidden');
