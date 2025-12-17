@@ -197,7 +197,9 @@ def api_upload():
     try:
         # Récupérer la session_id pour tracker
         session_id = request.form.get('session_id', 'default')
-        tracker = ProgressTracker(session_id) if session_id in progress_sessions else None
+        # Créer TOUJOURS un tracker (il sera initialisé côté frontend)
+        tracker = ProgressTracker(session_id)
+        logger.info(f"Session créée: {session_id}")
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Pas de fichier'}), 400
@@ -248,7 +250,8 @@ def api_upload():
             total_fax = len(entries)
             fax_envoyes = sum(1 for e in entries if e.get('mode') == 'SF')
             fax_recus = sum(1 for e in entries if e.get('mode') == 'RF')
-            erreurs_totales = sum(1 for e in entries if e.get('erreurs'))
+            # Compter les erreurs : FAX avec champ 'erreurs' rempli OU valide = False
+            erreurs_totales = sum(1 for e in entries if e.get('erreurs') or e.get('valide') == False)
             taux_reussite = ((total_fax - erreurs_totales) / total_fax * 100) if total_fax > 0 else 0.0
             pages_totales = sum(e.get('pages', 0) or 0 for e in entries if isinstance(e.get('pages'), (int, float)))
             pages_sf = sum(e.get('pages', 0) or 0 for e in entries if e.get('mode') == 'SF')
@@ -292,6 +295,10 @@ def api_upload():
                 try:
                     entry_id = str(uuid4())
                     
+                    # Déterminer la validité selon les erreurs
+                    has_errors = bool(entry.get('erreurs') or entry.get('valide') == False)
+                    is_valid = 0 if has_errors else 1
+                    
                     cursor.execute("""
                         INSERT INTO fax_entries (
                             id, report_id, fax_id, utilisateur, mode, date_heure,
@@ -307,19 +314,25 @@ def api_upload():
                         entry.get('numero_envoi') or '-',
                         entry.get('numero') or '-',
                         entry.get('pages') or 0,
-                        1,  # valide
+                        is_valid,  # valide basé sur les erreurs
                         entry.get('erreurs', '')  # erreurs
                     ))
                     saved_count += 1
                     
-                    # Mettre à jour la progression tous les 100 entrées
-                    if idx % 100 == 0 and tracker:
-                        percent = 60 + (idx / len(entries)) * 30
-                        tracker.update(int(percent), f'Insertion', f'{idx}/{len(entries)} FAX...')
+                    # Mettre à jour la progression tous les 50 entrées (plus granulaire)
+                    if idx % 50 == 0 and tracker:
+                        percent = 60 + (idx / len(entries)) * 30 if len(entries) > 0 else 60
+                        percent = min(int(percent), 89)  # Max 89% avant finalisation
+                        message = f'{saved_count}/{len(entries)} FAX insérés'
+                        tracker.update(percent, 'Insertion des FAX', message)
                 except Exception as e:
                     logger.warning(f"Erreur sauvegarde entrée: {e}")
             
             conn.commit()
+            
+            # Mise à jour finale avant finalisation
+            if tracker:
+                tracker.update(89, 'Insertion des FAX', f'{saved_count}/{len(entries)} FAX insérés')
             
             # 90-95%: Ajouter une entrée dans analysis_history
             if tracker:

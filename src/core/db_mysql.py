@@ -258,7 +258,8 @@ class DatabaseMySQL:
             reports = []
             for row in cursor.fetchall():
                 reports.append({
-                    'id': row[0],
+                    'report_id': row[0],
+                    'id': row[0],  # Pour compatibilité
                     'date_rapport': str(row[1]),
                     'contract_id': row[2],
                     'total_fax': row[3],

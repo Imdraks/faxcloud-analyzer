@@ -82,6 +82,11 @@ class FaxDashboard {
             const progressDiv = document.getElementById('uploadProgress');
             progressDiv.classList.remove('hidden');
 
+            // Mise à jour visuelle initiale
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = '0% - Initialisation...';
+
+            // Connexion SSE pour suivre la progression EN TEMPS RÉEL
             const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
 
             eventSource.onmessage = (event) => {
@@ -89,12 +94,23 @@ class FaxDashboard {
                     const data = JSON.parse(event.data);
                     const percent = data.percent || 0;
                     const step = data.step || 'Traitement';
+                    const message = data.message || '';
 
+                    // Animation de la barre
                     document.getElementById('progressFill').style.width = percent + '%';
-                    document.getElementById('progressText').textContent = `${percent}% - ${step}`;
+                    
+                    // Texte avec étape et message
+                    let displayText = `${percent}% - ${step}`;
+                    if (message) {
+                        displayText += ` (${message})`;
+                    }
+                    document.getElementById('progressText').textContent = displayText;
 
+                    // Fermer quand terminé
                     if (percent >= 100) {
-                        eventSource.close();
+                        setTimeout(() => {
+                            eventSource.close();
+                        }, 500);
                     }
                 } catch (e) {
                     console.error('Erreur SSE:', e);
@@ -102,9 +118,11 @@ class FaxDashboard {
             };
 
             eventSource.onerror = () => {
+                console.error('Erreur SSE connection');
                 eventSource.close();
             };
 
+            // Préparer et envoyer le formulaire
             const formData = new FormData();
             formData.append('file', file);
             formData.append('session_id', sessionId);
@@ -124,14 +142,27 @@ class FaxDashboard {
                     if (xhr.status === 200) {
                         try {
                             const data = JSON.parse(xhr.responseText);
+                            console.log('Response data:', data);
+                            
                             if (data.success) {
+                                // Afficher succès et attendre 1 seconde
+                                this.showMessage('success', `✅ ${data.message}`);
+                                document.getElementById('uploadProgress').classList.add('hidden');
+                                document.getElementById('fileInput').value = '';
+                                
+                                // Mettre à jour les stats
+                                this.loadStats();
+                                this.loadReports();
+                                
+                                // Redirection vers le rapport après 1 seconde
                                 setTimeout(() => {
-                                    this.loadStats();
-                                    this.loadReports();
-                                    this.showMessage('success', `✅ ${data.message}`);
-                                    document.getElementById('uploadProgress').classList.add('hidden');
-                                    document.getElementById('fileInput').value = '';
-                                }, 2000);
+                                    console.log('Redirection vers:', `/report/${data.report_id}`);
+                                    if (data.report_id) {
+                                        window.location.href = `/report/${data.report_id}`;
+                                    } else {
+                                        console.error('Pas de report_id dans la réponse!');
+                                    }
+                                }, 1000);
                             } else {
                                 this.showMessage('error', `❌ Erreur: ${data.error}`);
                                 eventSource.close();

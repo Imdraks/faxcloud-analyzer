@@ -13,6 +13,7 @@ import pandas as pd
 import chardet
 
 from .config import Config
+from .validation_rules import validate_fax_type, analyze_number, validate_pages
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +206,7 @@ class FileImporter:
             return self._error_response(f"Excel import failed: {str(e)}")
 
     def _extract_entries(self, df: pd.DataFrame) -> list:
-        """Extract FAX entries from dataframe."""
+        """Extract FAX entries from dataframe with validation."""
         entries = []
         
         for idx, row in df.iterrows():
@@ -254,6 +255,27 @@ class FileImporter:
                     except (ValueError, TypeError):
                         pages_facturees = None
                 
+                # ✅ VALIDATION AUTOMATIQUE DES REGLES
+                erreurs = []
+                
+                # 1. Valider le mode (SF/RF)
+                mode_valide, erreur_mode = validate_fax_type(mode)
+                if not mode_valide:
+                    erreurs.append(erreur_mode)
+                
+                # 2. Valider et normaliser le numéro
+                numero_valide, numero_normalise, erreur_num = analyze_number(numero_appele)
+                if not numero_valide:
+                    erreurs.append(erreur_num)
+                
+                # 3. Valider les pages
+                pages_valide, erreur_pages = validate_pages(pages)
+                if not pages_valide:
+                    erreurs.append(erreur_pages)
+                
+                # Déterminer si l'entry est valide
+                is_valid = len(erreurs) == 0
+                
                 # Create entry with all available information
                 entry = {
                     'fax_id': fax_id if fax_id and fax_id != 'nan' else None,
@@ -264,12 +286,15 @@ class FileImporter:
                     'date_heure': datetime_str if datetime_str and datetime_str != 'nan' else None,
                     'numero_envoi': numero_envoi if numero_envoi and numero_envoi != 'nan' else None,
                     'numero': numero_appele,  # Renamed to 'numero' for analyzer compatibility
+                    'numero_normalise': numero_normalise,  # Numéro normalisé
                     'appel_international': appel_intl if appel_intl and appel_intl != 'nan' else None,
                     'appel_interne': appel_interne if appel_interne and appel_interne != 'nan' else None,
                     'pages': pages,  # Now handles decimals: converts to int (0, 1, 2, etc.)
                     'duree': duree if duree and duree != 'nan' else None,
                     'pages_facturees': pages_facturees,
-                    'type_facturation': type_fact if type_fact and type_fact != 'nan' else None
+                    'type_facturation': type_fact if type_fact and type_fact != 'nan' else None,
+                    'valide': 1 if is_valid else 0,  # 1 = valide, 0 = erreur
+                    'erreurs': ' | '.join(erreurs) if erreurs else ''  # Messages d'erreur concaténés
                 }
                 
                 entries.append(entry)
