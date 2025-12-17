@@ -4,6 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 import hashlib
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from .config import settings, ensure_directories
@@ -63,6 +64,23 @@ def init_database() -> None:
     )
     conn.commit()
 
+    # Audit log (traçabilité des actions: import/export/suppression, etc.)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT,
+            user TEXT,
+            action TEXT,
+            report_id TEXT,
+            ip TEXT,
+            user_agent TEXT,
+            meta_json TEXT
+        )
+        """
+    )
+    conn.commit()
+
     # Migrations légères (anciens fichiers DB) : ajout des colonnes si absentes.
     # SQLite ne supporte pas IF NOT EXISTS sur ADD COLUMN partout.
     for stmt in (
@@ -76,6 +94,58 @@ def init_database() -> None:
             pass
 
     conn.close()
+
+
+def insert_audit_event(
+    action: str,
+    user: str = "anonymous",
+    report_id: Optional[str] = None,
+    ip: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    meta: Optional[Dict] = None,
+) -> None:
+    """Insère un événement d'audit (best-effort).
+
+    Ne doit jamais casser l'app si l'audit échoue.
+    """
+    try:
+        conn = _connect()
+        cur = conn.cursor()
+        ts = datetime.now(timezone.utc).isoformat()
+        meta_json = json.dumps(meta or {}, ensure_ascii=False)
+        cur.execute(
+            """
+            INSERT INTO audit_log (ts, user, action, report_id, ip, user_agent, meta_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (ts, user, action, report_id, ip, user_agent, meta_json),
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        # best-effort: ne pas faire tomber une export/import à cause de l'audit
+        return
+
+
+def list_audit_events(limit: int = 200, offset: int = 0) -> List[Dict]:
+    """Retourne les événements d'audit les plus récents."""
+    limit = max(1, min(1000, int(limit)))
+    offset = max(0, int(offset))
+
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, ts, user, action, report_id, ip, user_agent, meta_json
+        FROM audit_log
+        ORDER BY id DESC
+        LIMIT ? OFFSET ?
+        """,
+        (limit, offset),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
 
 
 def insert_report_to_db(
