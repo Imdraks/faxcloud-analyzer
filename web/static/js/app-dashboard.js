@@ -82,57 +82,52 @@ class FaxDashboard {
             const progressDiv = document.getElementById('uploadProgress');
             progressDiv.classList.remove('hidden');
 
-            // Mise à jour visuelle initiale
+            console.log('🎯 Début upload, sessionId:', sessionId);
+            
+            // Afficher la barre de progression
+            const progressDiv = document.getElementById('uploadProgress');
+            progressDiv.classList.remove('hidden');
+
+            // Réinitialiser la barre
             document.getElementById('progressFill').style.width = '0%';
             document.getElementById('progressText').textContent = '0% - Initialisation...';
-            console.log('🎯 Upload lancé, sessionId:', sessionId);
 
-            // Connexion SSE pour suivre la progression EN TEMPS RÉEL
-            const sseUrl = `/api/upload-progress/${sessionId}`;
-            console.log('🔌 Connexion SSE à:', sseUrl);
-            const eventSource = new EventSource(sseUrl);
-            let lastSSEPercent = 0;  // Tracker du dernier pourcentage SSE
+            // Connexion SSE
+            console.log('🔌 Connexion SSE...');
+            const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
 
             eventSource.onopen = () => {
-                console.log('✅ SSE Connexion établie');
+                console.log('✅ SSE connecté');
             };
 
             eventSource.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    const percent = data.percent || 0;
-                    const step = data.step || 'Traitement';
-                    const message = data.message || '';
-
-                    // Log pour debugging
-                    console.log(`📊 SSE Update: ${percent}% - ${step} - ${message}`);
-                    lastSSEPercent = percent;
-
-                    // Animation de la barre
-                    document.getElementById('progressFill').style.width = percent + '%';
+                    console.log('📊 Message SSE reçu:', data);
                     
-                    // Texte avec étape et message
-                    let displayText = `${percent}% - ${step}`;
-                    if (message) {
-                        displayText += ` (${message})`;
+                    if (data.error) {
+                        console.error('❌ Erreur SSE:', data.error);
+                        return;
                     }
-                    document.getElementById('progressText').textContent = displayText;
-
-                    // Fermer quand terminé
+                    
+                    const percent = data.percent || 0;
+                    const message = data.message || '';
+                    
+                    // Mettre à jour l'affichage
+                    document.getElementById('progressFill').style.width = percent + '%';
+                    document.getElementById('progressText').textContent = `${percent}% - ${message}`;
+                    
                     if (percent >= 100) {
-                        console.log('✅ Upload terminé, fermeture SSE');
-                        setTimeout(() => {
-                            eventSource.close();
-                        }, 500);
+                        console.log('✅ Upload à 100%, fermeture SSE');
+                        eventSource.close();
                     }
                 } catch (e) {
-                    console.error('❌ Erreur parsing SSE:', e);
+                    console.error('❌ Erreur parse:', e);
                 }
             };
 
             eventSource.onerror = (error) => {
                 console.error('❌ Erreur SSE:', error);
-                console.error('État SSE:', eventSource.readyState);
                 eventSource.close();
             };
                     console.error('Erreur SSE:', e);

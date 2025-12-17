@@ -65,46 +65,55 @@ logger = Config.get_logger(__name__)
 # SYSTÈME DE PROGRESSION POUR UPLOADS (SSE - Server-Sent Events)
 # ═══════════════════════════════════════════════════════════════════════════
 
+import queue
+import threading
+
 class ProgressTracker:
-    """Tracker pour envoyer les mises à jour de progression via SSE"""
-    progress_sessions = {}  # Dictionnaire de classe pour stocker les sessions
+    """Tracker simple pour la progression SSE"""
+    progress_sessions = {}  # Dictionnaire de classe
     
     def __init__(self, session_id):
         self.session_id = session_id
         self.queue = queue.Queue()
         ProgressTracker.progress_sessions[session_id] = self
+        logger.info(f"✅ Tracker créé: {session_id}")
     
-    def update(self, percent, step, message):
-        """Envoyer une mise à jour de progression"""
-        data = {
-            'percent': percent,
-            'step': step,
-            'message': message
-        }
-        self.queue.put(data)
-        logger.info(f"Progress [{self.session_id}]: {percent}% - {step}")
+    def update(self, percent, message=''):
+        """Envoyer une mise à jour"""
+        try:
+            data = {'percent': percent, 'message': message}
+            self.queue.put(data)
+            logger.info(f"📊 Progress [{self.session_id}]: {percent}% - {message}")
+        except Exception as e:
+            logger.error(f"Erreur update: {e}")
     
     def get_updates(self):
         """Générateur pour SSE"""
-        while True:
+        max_wait = 60  # Max 60 secondes d'attente
+        elapsed = 0
+        
+        while elapsed < max_wait:
             try:
-                data = self.queue.get(timeout=30)
-                if data is None:  # Signal d'arrêt
-                    logger.info(f"SSE [{self.session_id}]: Fermeture")
+                data = self.queue.get(timeout=2)
+                if data is None:
                     break
-                json_data = json.dumps(data)
-                logger.info(f"SSE [{self.session_id}]: Envoi {data.get('percent')}% - {data.get('step')}")
-                yield f"data: {json_data}\n\n"
+                elapsed = 0  # Reset timer si message reçu
+                yield f"data: {json.dumps(data)}\n\n"
             except queue.Empty:
-                # Timeout = session terminée
-                logger.info(f"SSE [{self.session_id}]: Timeout")
-                break
+                elapsed += 2
+                # Continuer à attendre
+        
+        logger.info(f"🛑 SSE [{self.session_id}]: Arrêt")
     
     def close(self):
         """Fermer la session"""
-        self.queue.put(None)
-        if self.session_id in ProgressTracker.progress_sessions:
-            del ProgressTracker.progress_sessions[self.session_id]
+        try:
+            self.queue.put(None)
+            if self.session_id in ProgressTracker.progress_sessions:
+                del ProgressTracker.progress_sessions[self.session_id]
+            logger.info(f"❌ Tracker fermé: {self.session_id}")
+        except Exception as e:
+            logger.error(f"Erreur close: {e}")
 
 # Initialiser la base de données
 db = None
@@ -141,19 +150,25 @@ def add_ngrok_bypass_header(response):
 
 @app.route('/api/upload-progress/<session_id>', methods=['GET'])
 def api_upload_progress(session_id):
-    """SSE endpoint pour suivre la progression de l'upload"""
+    """SSE endpoint pour suivre la progression"""
+    logger.info(f"🔗 Client SSE connecté: {session_id}")
+    
     def generate():
         if session_id not in ProgressTracker.progress_sessions:
+            logger.warning(f"⚠️ Session introuvable: {session_id}")
             yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
             return
         
         tracker = ProgressTracker.progress_sessions[session_id]
+        logger.info(f"✅ Tracker trouvé, envoi des mises à jour...")
+        
         for update in tracker.get_updates():
             yield update
     
     return Response(generate(), mimetype='text/event-stream', headers={
         'Cache-Control': 'no-cache',
-        'X-Accel-Buffering': 'no'
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive'
     })
 
 @app.route('/', methods=['GET'])
@@ -216,17 +231,17 @@ def api_upload():
         filepath = Path(app.config['UPLOAD_FOLDER']) / filename
         file.save(str(filepath))
         if tracker:
-            tracker.update(20, 'Fichier sauvegardé', 'Analyse du fichier...')
+            tracker.update(20, 'Fichier sauvegardé - Analyse...')
         
         # 20-40%: Import et parsing
         importer = FileImporter()
         result = importer.import_file(str(filepath))
         if tracker:
-            tracker.update(40, 'Fichier parsé', 'Validation des données...')
+            tracker.update(40, 'Fichier parsé - Validation...')
         
         if not result.get('success', False):
             if tracker:
-                tracker.update(100, 'Erreur', 'Import échoué')
+                tracker.update(100, 'Erreur - Import échoué')
             return jsonify({
                 'success': False,
                 'error': result.get('errors', ['Erreur inconnue'])[0]
@@ -262,7 +277,7 @@ def api_upload():
             
             # 40-60%: Création du rapport
             if tracker:
-                tracker.update(50, 'Rapport créé', 'Insertion des données...')
+                tracker.update(50, 'Rapport créé - Insertion...')
             
             logger.info(f"Import: {total_fax} FAX, SF={fax_envoyes} ({pages_sf} pages), RF={fax_recus} ({pages_rf} pages)")
             
