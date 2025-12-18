@@ -36,6 +36,15 @@ class FaxApp {
         const progressFill = document.getElementById('progressFill');
         const statusEl = document.getElementById('uploadStatus');
 
+        const formatBytes = (bytes) => {
+            const b = Number(bytes);
+            if (!Number.isFinite(b) || b <= 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.min(units.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
+            const v = b / Math.pow(1024, i);
+            return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+        };
+
         const setStatus = (t) => {
             if (statusEl) statusEl.textContent = t;
         };
@@ -46,7 +55,7 @@ class FaxApp {
 
         msgDiv.innerHTML = '';
         progressDiv.classList.remove('hidden');
-        setStatus('Envoi du fichier…');
+        setStatus(`Fichier: ${file.name} (${formatBytes(file.size)}) — Envoi…`);
         setPercent(0);
 
         let evt = null;
@@ -174,7 +183,7 @@ class FaxApp {
             stopEvents();
             stopPolling();
             msgDiv.innerHTML = `<div class="error">✗ Erreur: ${error.message}</div>`;
-            progressDiv.classList.add('hidden');
+            setStatus('Erreur');
         }
     }
 }

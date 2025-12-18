@@ -106,7 +106,7 @@
                     <h2>Entrées</h2>
                     <p class="text-muted">Affichage par pages pour rester performant.</p>
 
-                    <div class="filter-bar" style="margin-top: 1rem;">
+                    <div id="entriesFilterBar" class="filter-bar" style="margin-top: 1rem;">
                         <div class="filter-actions">
                             <button id="entriesApplyFilters" class="btn" type="button">Filtrer</button>
                             <button id="entriesClearFilters" class="btn" type="button">Réinitialiser</button>
@@ -156,7 +156,7 @@
 
                     <div id="entriesPagination" class="pagination" style="margin-top: 1rem;"></div>
                     <div id="entriesFilterSummary" class="filter-summary" style="margin-top: 0.75rem;"></div>
-                    <p id="entriesStatus" class="text-muted" style="margin-top: 0.75rem;"></p>
+                    <p id="entriesStatus" class="text-muted" style="margin-top: 0.75rem;" role="status" aria-live="polite"></p>
 
                     <div class="table-wrap" style="margin-top: 1rem;">
                         <table class="table">

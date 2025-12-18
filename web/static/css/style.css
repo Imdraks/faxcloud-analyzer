@@ -339,6 +339,20 @@ html, body {
     opacity: 0.6;
 }
 
+/* Report entries skeleton */
+.skeleton-block {
+    height: 12px;
+    border-radius: 6px;
+    background: var(--card);
+    border: 1px solid var(--border);
+}
+
+.sk-w-30 { width: 30%; }
+.sk-w-45 { width: 45%; }
+.sk-w-55 { width: 55%; }
+.sk-w-70 { width: 70%; }
+.sk-w-85 { width: 85%; }
+
 .hidden {
     display: none !important;
 }
@@ -429,6 +443,10 @@ html, body {
     border: 1px solid var(--border);
     border-radius: 10px;
     background: #ffffff;
+}
+
+.filter-bar.is-busy {
+    opacity: 0.75;
 }
 
 .filter-field {

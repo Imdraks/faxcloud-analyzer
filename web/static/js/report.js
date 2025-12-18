@@ -38,6 +38,7 @@ class ReportEntries {
     this.status = document.querySelector('#entriesStatus');
     this.pagination = document.querySelector('#entriesPagination');
     this.filterSummary = document.getElementById('entriesFilterSummary');
+    this.filterBar = document.getElementById('entriesFilterBar');
 
     this.typeFilter = document.getElementById('entriesTypeFilter');
     this.validFilter = document.getElementById('entriesValidFilter');
@@ -146,6 +147,48 @@ class ReportEntries {
     if (this.status) this.status.textContent = text;
   }
 
+  setBusy(isBusy) {
+    const busy = Boolean(isBusy);
+    if (this.filterBar) {
+      this.filterBar.classList.toggle('is-busy', busy);
+      this.filterBar.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+
+    const controls = [
+      this.typeFilter,
+      this.validFilter,
+      this.dateFromInput,
+      this.dateToInput,
+      this.searchInput,
+      this.orderSelect,
+      this.applyBtn,
+      this.clearBtn,
+    ].filter(Boolean);
+
+    for (const el of controls) {
+      try { el.disabled = busy; } catch (_) {}
+    }
+  }
+
+  renderSkeleton(rows = 8) {
+    if (!this.tbody) return;
+    this.tbody.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < rows; i++) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><div class="skeleton-block sk-w-70"></div></td>
+        <td><div class="skeleton-block sk-w-45"></div></td>
+        <td><div class="skeleton-block sk-w-30"></div></td>
+        <td><div class="skeleton-block sk-w-55"></div></td>
+        <td><div class="skeleton-block sk-w-85"></div></td>
+        <td><div class="skeleton-block sk-w-30"></div></td>
+      `;
+      fragment.appendChild(tr);
+    }
+    this.tbody.appendChild(fragment);
+  }
+
   _readFiltersFromUI() {
     this.filters.type = (this.typeFilter?.value || '').trim();
     this.filters.valide = (this.validFilter?.value || '').trim();
@@ -190,6 +233,14 @@ class ReportEntries {
     if (!this.tbody) return;
     this.tbody.innerHTML = '';
     const fragment = document.createDocumentFragment();
+
+    if (!rows || rows.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="6"><span class="text-muted">Aucune entrée pour ces filtres.</span></td>`;
+      fragment.appendChild(tr);
+      this.tbody.appendChild(fragment);
+      return;
+    }
 
     for (const r of rows) {
       const tr = document.createElement('tr');
@@ -250,6 +301,8 @@ class ReportEntries {
 
       this.setStatus('Chargement…');
       if (this.tbody) this.tbody.classList.add('is-loading');
+      this.setBusy(true);
+      if (this.tbody && this.tbody.children.length === 0) this.renderSkeleton(8);
 
       const target = Math.max(1, parseInt(page, 10) || 1);
       this._updateUrl(target);
@@ -287,6 +340,7 @@ class ReportEntries {
       this.setStatus(`Erreur: ${e.message}`);
     } finally {
       if (this.tbody) this.tbody.classList.remove('is-loading');
+      this.setBusy(false);
     }
   }
 }
