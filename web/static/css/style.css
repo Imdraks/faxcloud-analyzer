@@ -82,6 +82,19 @@ html, body {
     transition: all 0.2s;
 }
 
+.side-link-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+}
+
+.side-link-icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+}
+
 .side-link:hover {
     background: #f0f0f0;
     border-color: var(--accent);
