@@ -31,8 +31,6 @@ class ReportEntries {
       q: '',
       date_from: '',
       date_to: '',
-      pages_min: '',
-      pages_max: '',
       order: 'asc',
     };
 
@@ -45,8 +43,6 @@ class ReportEntries {
     this.validFilter = document.getElementById('entriesValidFilter');
     this.dateFromInput = document.getElementById('entriesDateFrom');
     this.dateToInput = document.getElementById('entriesDateTo');
-    this.pagesMinInput = document.getElementById('entriesPagesMin');
-    this.pagesMaxInput = document.getElementById('entriesPagesMax');
     this.searchInput = document.getElementById('entriesSearchInput');
     this.orderSelect = document.getElementById('entriesOrder');
     this.applyBtn = document.getElementById('entriesApplyFilters');
@@ -74,8 +70,6 @@ class ReportEntries {
     this.validFilter?.addEventListener('change', () => this.applyFilters());
     this.dateFromInput?.addEventListener('change', () => this.applyFilters());
     this.dateToInput?.addEventListener('change', () => this.applyFilters());
-    this.pagesMinInput?.addEventListener('change', () => this.applyFilters());
-    this.pagesMaxInput?.addEventListener('change', () => this.applyFilters());
 
     this.orderSelect?.addEventListener('change', () => this.applyFilters());
     this.exportFilteredBtn?.addEventListener('click', () => this.exportFilteredCsv());
@@ -101,8 +95,6 @@ class ReportEntries {
     add('Valide', this.filters.valide === '1' ? 'Oui' : (this.filters.valide === '0' ? 'Non' : ''));
     add('Du', this.filters.date_from);
     add('Au', this.filters.date_to);
-    add('Pages ≥', this.filters.pages_min);
-    add('Pages ≤', this.filters.pages_max);
     add('Recherche', this.filters.q);
     add('Tri', this.filters.order === 'desc' ? 'Date ↓' : 'Date ↑');
 
@@ -150,8 +142,6 @@ class ReportEntries {
     setIfPresent('q', this.searchInput);
     setIfPresent('date_from', this.dateFromInput);
     setIfPresent('date_to', this.dateToInput);
-    setIfPresent('pages_min', this.pagesMinInput);
-    setIfPresent('pages_max', this.pagesMaxInput);
     setIfPresent('order', this.orderSelect, 'asc');
 
     if (this.orderSelect && !this.orderSelect.value) this.orderSelect.value = 'asc';
@@ -166,8 +156,6 @@ class ReportEntries {
     if (this.filters.q) params.set('q', this.filters.q);
     if (this.filters.date_from) params.set('date_from', this.filters.date_from);
     if (this.filters.date_to) params.set('date_to', this.filters.date_to);
-    if (this.filters.pages_min) params.set('pages_min', this.filters.pages_min);
-    if (this.filters.pages_max) params.set('pages_max', this.filters.pages_max);
     if (this.filters.order && this.filters.order !== 'asc') params.set('order', this.filters.order);
 
     const next = `${window.location.pathname}?${params.toString()}`;
@@ -184,8 +172,6 @@ class ReportEntries {
     this.filters.q = (this.searchInput?.value || '').trim();
     this.filters.date_from = (this.dateFromInput?.value || '').trim();
     this.filters.date_to = (this.dateToInput?.value || '').trim();
-    this.filters.pages_min = (this.pagesMinInput?.value || '').trim();
-    this.filters.pages_max = (this.pagesMaxInput?.value || '').trim();
     this.filters.order = (this.orderSelect?.value || 'asc').trim() || 'asc';
   }
 
@@ -199,8 +185,6 @@ class ReportEntries {
     if (this.filters.q) params.set('q', this.filters.q);
     if (this.filters.date_from) params.set('date_from', this.filters.date_from);
     if (this.filters.date_to) params.set('date_to', this.filters.date_to);
-    if (this.filters.pages_min) params.set('pages_min', this.filters.pages_min);
-    if (this.filters.pages_max) params.set('pages_max', this.filters.pages_max);
     if (this.filters.order) params.set('order', this.filters.order);
 
     return params.toString();
@@ -208,16 +192,6 @@ class ReportEntries {
 
   applyFilters() {
     this._readFiltersFromUI();
-    // Basic validation: keep as simple UX (no modal)
-    const pmin = this.filters.pages_min ? parseInt(this.filters.pages_min, 10) : null;
-    const pmax = this.filters.pages_max ? parseInt(this.filters.pages_max, 10) : null;
-    if (pmin !== null && pmax !== null && !Number.isNaN(pmin) && !Number.isNaN(pmax) && pmin > pmax) {
-      // swap
-      this.filters.pages_min = String(pmax);
-      this.filters.pages_max = String(pmin);
-      if (this.pagesMinInput) this.pagesMinInput.value = this.filters.pages_min;
-      if (this.pagesMaxInput) this.pagesMaxInput.value = this.filters.pages_max;
-    }
     this.loadPage(1);
   }
 
@@ -226,8 +200,6 @@ class ReportEntries {
     if (this.validFilter) this.validFilter.value = '';
     if (this.dateFromInput) this.dateFromInput.value = '';
     if (this.dateToInput) this.dateToInput.value = '';
-    if (this.pagesMinInput) this.pagesMinInput.value = '';
-    if (this.pagesMaxInput) this.pagesMaxInput.value = '';
     if (this.searchInput) this.searchInput.value = '';
     if (this.orderSelect) this.orderSelect.value = 'asc';
     this._readFiltersFromUI();
@@ -235,14 +207,10 @@ class ReportEntries {
   }
 
   _buildExportQueryParams() {
-    const params = new URLSearchParams();
-    if (this.filters.type) params.set('type', this.filters.type);
-    if (this.filters.valide) params.set('valide', this.filters.valide);
+      // Removed filtered export and copy link buttons
     if (this.filters.q) params.set('q', this.filters.q);
     if (this.filters.date_from) params.set('date_from', this.filters.date_from);
     if (this.filters.date_to) params.set('date_to', this.filters.date_to);
-    if (this.filters.pages_min) params.set('pages_min', this.filters.pages_min);
-    if (this.filters.pages_max) params.set('pages_max', this.filters.pages_max);
     if (this.filters.order) params.set('order', this.filters.order);
     return params.toString();
   }
@@ -261,54 +229,16 @@ class ReportEntries {
     window.location.href = url;
   }
 
-  setRows(rows) {
-    if (!this.tbody) return;
-    this.tbody.innerHTML = '';
+      // Removed event listeners for filtered export and copy link
     const fragment = document.createDocumentFragment();
 
     for (const r of rows) {
       const tr = document.createElement('tr');
       if (!r.valide) tr.classList.add('row-invalid');
-      tr.innerHTML = `
-        <td>${escapeHtml(r.datetime)}</td>
-        <td>${escapeHtml(r.type)}</td>
-        <td>${escapeHtml(r.pages)}</td>
-        <td>${escapeHtml(r.utilisateur)}</td>
-        <td>${escapeHtml(r.numero_normalise || r.numero_original)}</td>
-        <td>${r.valide ? '✓' : '✗'}</td>
-      `;
-      fragment.appendChild(tr);
-    }
-
-    this.tbody.appendChild(fragment);
+      // Feature removed from UI
   }
 
-  renderPagination() {
-    if (!this.pagination) return;
-    this.pagination.innerHTML = '';
-
-    if (!this.total || this.pageCount <= 1) return;
-
-    const makeBtn = (label, targetPage, { disabled = false, active = false } = {}) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `page-btn${active ? ' active' : ''}`;
-      btn.textContent = label;
-      btn.disabled = disabled;
-      btn.addEventListener('click', () => this.loadPage(targetPage));
-      return btn;
-    };
-
-    // « previous, » next (simple)
-    this.pagination.appendChild(makeBtn('«', this.page - 1, { disabled: this.page <= 1 }));
-
-    const windowSize = 10;
-    let start = Math.max(1, this.page - Math.floor(windowSize / 2));
-    let end = start + windowSize - 1;
-    if (end > this.pageCount) {
-      end = this.pageCount;
-      start = Math.max(1, end - windowSize + 1);
-    }
+    // Removed export functions
 
     for (let p = start; p <= end; p++) {
       this.pagination.appendChild(makeBtn(String(p), p, { active: p === this.page }));
