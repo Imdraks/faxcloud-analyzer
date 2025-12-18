@@ -20,8 +20,6 @@ if not "%OPEN_BROWSER%"=="" (
 	start "" "http://127.0.0.1:%PORT%/"
 )
 
-python (-m src.server --host 127.0.0.1 --port %PORT%
-
 python -m src.server --host 127.0.0.1 --port %PORT%
 
 endlocal
