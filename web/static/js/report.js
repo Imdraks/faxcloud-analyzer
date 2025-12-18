@@ -20,18 +20,67 @@ function escapeHtml(value) {
 class ReportEntries {
   constructor(reportId) {
     this.reportId = reportId;
-    this.limit = 200;
+    this.limit = 20;
     this.total = null;
     this.page = 1;
     this.pageCount = 1;
 
+    this.filters = {
+      type: '',
+      valide: '',
+      q: '',
+    };
+
     this.tbody = document.querySelector('#entriesTableBody');
     this.status = document.querySelector('#entriesStatus');
     this.pagination = document.querySelector('#entriesPagination');
+
+    this.typeFilter = document.getElementById('entriesTypeFilter');
+    this.validFilter = document.getElementById('entriesValidFilter');
+    this.searchInput = document.getElementById('entriesSearchInput');
+    this.applyBtn = document.getElementById('entriesApplyFilters');
+    this.clearBtn = document.getElementById('entriesClearFilters');
+
+    this.applyBtn?.addEventListener('click', () => this.applyFilters());
+    this.clearBtn?.addEventListener('click', () => this.clearFilters());
+    this.searchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.applyFilters();
+    });
   }
 
   setStatus(text) {
     if (this.status) this.status.textContent = text;
+  }
+
+  _readFiltersFromUI() {
+    this.filters.type = (this.typeFilter?.value || '').trim();
+    this.filters.valide = (this.validFilter?.value || '').trim();
+    this.filters.q = (this.searchInput?.value || '').trim();
+  }
+
+  _buildQueryParams(offset) {
+    const params = new URLSearchParams();
+    params.set('offset', String(offset));
+    params.set('limit', String(this.limit));
+
+    if (this.filters.type) params.set('type', this.filters.type);
+    if (this.filters.valide) params.set('valide', this.filters.valide);
+    if (this.filters.q) params.set('q', this.filters.q);
+
+    return params.toString();
+  }
+
+  applyFilters() {
+    this._readFiltersFromUI();
+    this.loadPage(1);
+  }
+
+  clearFilters() {
+    if (this.typeFilter) this.typeFilter.value = '';
+    if (this.validFilter) this.validFilter.value = '';
+    if (this.searchInput) this.searchInput.value = '';
+    this._readFiltersFromUI();
+    this.loadPage(1);
   }
 
   setRows(rows) {
@@ -96,7 +145,7 @@ class ReportEntries {
       const target = Math.max(1, parseInt(page, 10) || 1);
       const offset = (target - 1) * this.limit;
 
-      const url = `/api/report/${encodeURIComponent(this.reportId)}/entries?offset=${offset}&limit=${this.limit}`;
+      const url = `/api/report/${encodeURIComponent(this.reportId)}/entries?${this._buildQueryParams(offset)}`;
       const data = await fetchJson(url);
 
       this.total = data.total;
@@ -106,7 +155,7 @@ class ReportEntries {
       // Si la page demandée dépasse le total (ex: suppression, changement de total), on recalcule.
       if (this.page !== target) {
         const offset2 = (this.page - 1) * this.limit;
-        const url2 = `/api/report/${encodeURIComponent(this.reportId)}/entries?offset=${offset2}&limit=${this.limit}`;
+        const url2 = `/api/report/${encodeURIComponent(this.reportId)}/entries?${this._buildQueryParams(offset2)}`;
         const data2 = await fetchJson(url2);
         this.total = data2.total;
         this.pageCount = Math.max(1, Math.ceil((this.total || 0) / this.limit));

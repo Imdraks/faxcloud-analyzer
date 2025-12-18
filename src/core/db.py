@@ -310,29 +310,63 @@ def get_report_summary_by_id(report_id: str) -> Optional[Dict]:
     return report
 
 
-def get_report_entries(report_id: str, offset: int = 0, limit: int = 200) -> Tuple[List[Dict], int]:
-    """Retourne une page d'entrées + le total d'entrées pour un rapport."""
+def get_report_entries(
+    report_id: str,
+    offset: int = 0,
+    limit: int = 200,
+    *,
+    entry_type: Optional[str] = None,
+    valide: Optional[int] = None,
+    q: Optional[str] = None,
+) -> Tuple[List[Dict], int]:
+    """Retourne une page d'entrées + le total filtré d'entrées pour un rapport.
+
+    Filtres (optionnels):
+    - entry_type: "send" | "receive"
+    - valide: 1 | 0
+    - q: recherche sur utilisateur + numéros
+    """
     offset = max(0, int(offset))
     limit = max(1, min(2000, int(limit)))
+
+    where = ["report_id = ?"]
+    params: List = [report_id]
+
+    if entry_type:
+        where.append("LOWER(type) = LOWER(?)")
+        params.append(entry_type)
+
+    if valide in (0, 1):
+        where.append("valide = ?")
+        params.append(int(valide))
+
+    if q:
+        q_like = f"%{q.strip()}%"
+        where.append(
+            "(utilisateur LIKE ? COLLATE NOCASE OR numero_normalise LIKE ? COLLATE NOCASE OR numero_original LIKE ? COLLATE NOCASE)"
+        )
+        params.extend([q_like, q_like, q_like])
+
+    where_sql = " AND ".join(where)
 
     conn = _connect()
     cur = conn.cursor()
     cur.execute(
-        "SELECT COUNT(*) AS total FROM fax_entries WHERE report_id = ?",
-        (report_id,),
+        f"SELECT COUNT(*) AS total FROM fax_entries WHERE {where_sql}",
+        tuple(params),
     )
     total = int(cur.fetchone()["total"])
 
     cur.execute(
-        """
+        f"""
         SELECT id, report_id, fax_id, utilisateur, type,
                numero_original, numero_normalise, valide, pages, datetime, erreurs
         FROM fax_entries
-        WHERE report_id = ?
+        WHERE {where_sql}
         ORDER BY datetime ASC
         LIMIT ? OFFSET ?
         """,
-        (report_id, limit, offset),
+        tuple(params + [limit, offset]),
     )
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()

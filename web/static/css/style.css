@@ -380,6 +380,40 @@ html, body {
     margin-right: 0.35rem;
 }
 
+.filter-bar {
+    display: grid;
+    grid-template-columns: 180px 180px 1fr auto;
+    gap: 0.75rem;
+    align-items: end;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #ffffff;
+}
+
+.filter-field {
+    min-width: 0;
+}
+
+.filter-grow {
+    min-width: 260px;
+}
+
+.filter-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--text-light);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.4px;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
 .report-item:hover {
     border-color: var(--primary);
     background: #f5f5f5;
@@ -566,6 +600,15 @@ html, body {
 
     .content-grid {
         grid-template-columns: 1fr;
+    }
+
+    .filter-bar {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .filter-grow {
+        min-width: 0;
     }
     
     .section {

@@ -165,6 +165,9 @@ def create_app() -> Flask:
     def api_report_entries(report_id: str):
         offset = request.args.get("offset", 0)
         limit = request.args.get("limit", 200)
+        entry_type = request.args.get("type") or None
+        valide = request.args.get("valide")
+        q = request.args.get("q") or None
         try:
             offset_i = int(offset)
         except Exception:
@@ -174,12 +177,27 @@ def create_app() -> Flask:
         except Exception:
             limit_i = 200
 
-        rows, total = get_report_entries(report_id, offset=offset_i, limit=limit_i)
+        valide_i = None
+        if valide is not None and str(valide).strip() != "":
+            try:
+                valide_i = int(valide)
+            except Exception:
+                valide_i = None
+
+        rows, total = get_report_entries(
+            report_id,
+            offset=offset_i,
+            limit=limit_i,
+            entry_type=entry_type,
+            valide=valide_i,
+            q=q,
+        )
         return jsonify({
             "report_id": report_id,
             "offset": offset_i,
             "limit": limit_i,
             "total": total,
+            "filters": {"type": entry_type, "valide": valide_i, "q": q},
             "entries": rows,
         })
 
