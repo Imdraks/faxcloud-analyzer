@@ -7,77 +7,88 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container" data-report-id="{{ report.id }}">
-        <header class="header">
-            <h1>📊 FaxCloud Analyzer</h1>
-            <p>Détail d'un rapport</p>
-            <nav>
-                <a href="/">Accueil</a>
-                <a href="/reports">Rapports</a>
-            </nav>
-        </header>
+    <div class="app-shell" data-report-id="{{ report.id }}">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-title">FaxCloud Analyzer</div>
+                <div class="brand-subtitle">Interface interne</div>
+            </div>
 
-        <main class="main">
-            <section class="section">
-                <h2>{{ report.contract_id or 'Rapport' }}</h2>
-                <p><strong>Période:</strong> {{ report.date_debut or '—' }} → {{ report.date_fin or '—' }}</p>
-                {% if report.source_filename %}
-                    <p class="text-muted"><strong>Fichier:</strong> {{ report.source_filename }}</p>
-                {% endif %}
-                
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <h4>Total FAX</h4>
-                        <p class="stat-value">{{ report.total_fax }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>FAX SF</h4>
-                        <p class="stat-value">{{ report.fax_sf or report.fax_envoyes or 0 }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>FAX RF</h4>
-                        <p class="stat-value">{{ report.fax_rf or report.fax_recus or 0 }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Pages réelles total</h4>
-                        <p class="stat-value">{{ report.pages_reelles_totales or report.pages_totales or 0 }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Pages réelles SF</h4>
-                        <p class="stat-value">{{ report.pages_reelles_sf or report.pages_envoyees or 0 }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Pages réelles RF</h4>
-                        <p class="stat-value">{{ report.pages_reelles_rf or report.pages_recues or 0 }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Erreurs</h4>
-                        <p class="stat-value">{{ report.erreurs_totales }}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Taux de réussite</h4>
-                        <p class="stat-value">{{ report.taux_reussite }}%</p>
-                    </div>
+            <nav class="side-nav">
+                <a class="side-link" href="/">Accueil</a>
+                <a class="side-link active" href="/reports">Rapports</a>
+            </nav>
+
+            <div class="side-footer">v1.0</div>
+        </aside>
+
+        <div class="content">
+            <header class="topbar">
+                <div>
+                    <h1 class="page-title">{{ report.contract_id or 'Rapport' }}</h1>
+                    <p class="page-subtitle">{{ report.date_debut or '—' }} → {{ report.date_fin or '—' }}</p>
+                    {% if report.source_filename %}
+                        <p class="text-muted" style="margin-top: 0.25rem;"><span class="meta-label">Fichier</span> {{ report.source_filename }}</p>
+                    {% endif %}
                 </div>
+                <div class="topbar-actions">
+                    <a class="btn" href="/api/report/{{ report.id }}/export.csv">Télécharger CSV</a>
+                    <a class="btn" href="/api/report/{{ report.id }}/export.json">Télécharger JSON</a>
+                    <button id="deleteReportBtn" class="btn" type="button">Supprimer</button>
+                </div>
+            </header>
+
+            <main class="main">
+                <section class="section">
+                    <h2>Résumé</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h4>Total FAX</h4>
+                            <p class="stat-value">{{ report.total_fax }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>FAX SF</h4>
+                            <p class="stat-value">{{ report.fax_sf or report.fax_envoyes or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>FAX RF</h4>
+                            <p class="stat-value">{{ report.fax_rf or report.fax_recus or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Pages réelles total</h4>
+                            <p class="stat-value">{{ report.pages_reelles_totales or report.pages_totales or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Pages réelles SF</h4>
+                            <p class="stat-value">{{ report.pages_reelles_sf or report.pages_envoyees or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Pages réelles RF</h4>
+                            <p class="stat-value">{{ report.pages_reelles_rf or report.pages_recues or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Erreurs</h4>
+                            <p class="stat-value">{{ report.erreurs_totales }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Taux de réussite</h4>
+                            <p class="stat-value">{{ report.taux_reussite }}%</p>
+                        </div>
+                    </div>
+                </section>
 
                 {% if report.qr_path %}
-                    <div style="margin-top: 2rem;">
-                        <h3>📱 QR Code</h3>
+                    <section class="section">
+                        <h2>QR Code</h2>
                         <img src="/api/report/{{ report.id }}/qr" alt="QR Code" style="width: 200px; height: 200px;">
-                    </div>
+                    </section>
                 {% endif %}
 
-                <div style="margin-top: 2rem;">
-                    <h3>📄 Entrées (paginé)</h3>
-                    <p class="text-muted">Pour éviter de charger 25k lignes d'un coup, on affiche par pages.</p>
+                <section class="section">
+                    <h2>Entrées</h2>
+                    <p class="text-muted">Affichage par pages pour rester performant.</p>
 
-                    <div class="actions-row">
-                        <a class="btn" href="/api/report/{{ report.id }}/export.csv">Télécharger CSV</a>
-                        <a class="btn" href="/api/report/{{ report.id }}/export.json">Télécharger JSON</a>
-                        <button id="loadMoreBtn" class="btn" type="button">Charger plus</button>
-                        <button id="deleteReportBtn" class="btn" type="button">Supprimer rapport</button>
-                    </div>
-
+                    <div id="entriesPagination" class="pagination" style="margin-top: 1rem;"></div>
                     <p id="entriesStatus" class="text-muted" style="margin-top: 0.75rem;"></p>
 
                     <div class="table-wrap" style="margin-top: 1rem;">
@@ -95,17 +106,13 @@
                             <tbody id="entriesTableBody"></tbody>
                         </table>
                     </div>
-                </div>
 
-                <div style="margin-top: 2rem;">
-                    <a href="/reports" class="btn">← Retour</a>
-                </div>
-            </section>
-        </main>
-
-        <footer class="footer">
-            <p>FaxCloud Analyzer v1.0</p>
-        </footer>
+                    <div style="margin-top: 1.25rem;">
+                        <a href="/reports" class="btn">Retour</a>
+                    </div>
+                </section>
+            </main>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/report.js') }}"></script>

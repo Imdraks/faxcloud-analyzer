@@ -7,43 +7,63 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <h1>📊 FaxCloud Analyzer</h1>
-            <p>Liste de vos rapports d'analyse</p>
-            <nav>
-                <a href="/">Accueil</a>
-                <a href="/reports">Rapports</a>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-title">FaxCloud Analyzer</div>
+                <div class="brand-subtitle">Interface interne</div>
+            </div>
+
+            <nav class="side-nav">
+                <a class="side-link" href="/">Accueil</a>
+                <a class="side-link active" href="/reports">Rapports</a>
             </nav>
-        </header>
 
-        <main class="main">
-            <section class="section">
-                <h2>📋 Rapports</h2>
-                
-                <div id="reportsList" class="reports-list">
-                    {% if reports %}
-                        {% for report in reports %}
-                            <div class="report-item">
-                                <h3>{{ report.contract_id or 'Sans contrat' }}</h3>
-                                <p><strong>Période:</strong> {{ report.date_debut }} → {{ report.date_fin }}</p>
-                                {% if report.source_filename %}
-                                    <p class="text-muted"><strong>Fichier:</strong> {{ report.source_filename }}</p>
-                                {% endif %}
-                                <p><strong>FAX:</strong> {{ report.total_fax }} | <strong>Erreurs:</strong> {{ report.erreurs_totales }} | <strong>Taux:</strong> {{ report.taux_reussite }}%</p>
-                                <a href="/report/{{ report.id }}" class="btn">Voir détails →</a>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="text-muted">Aucun rapport en base.</p>
-                    {% endif %}
+            <div class="side-footer">v1.0</div>
+        </aside>
+
+        <div class="content">
+            <header class="topbar">
+                <div>
+                    <h1 class="page-title">Rapports</h1>
+                    <p class="page-subtitle">Liste des rapports générés.</p>
                 </div>
-            </section>
-        </main>
+            </header>
 
-        <footer class="footer">
-            <p>FaxCloud Analyzer v1.0</p>
-        </footer>
+            <main class="main">
+                <section class="section">
+                    <h2>Liste</h2>
+
+                    <div id="reportsList" class="reports-list">
+                        {% if reports %}
+                            {% for report in reports %}
+                                <div class="report-item">
+                                    <div class="report-item-header">
+                                        <h3 class="report-title">{{ report.contract_id or 'Sans contrat' }}</h3>
+                                        <a href="/report/{{ report.id }}" class="btn">Ouvrir</a>
+                                    </div>
+
+                                    <div class="report-meta">
+                                        <div><span class="meta-label">Période</span> {{ report.date_debut }} → {{ report.date_fin }}</div>
+                                        {% if report.source_filename %}
+                                            <div class="text-muted"><span class="meta-label">Fichier</span> {{ report.source_filename }}</div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="report-kpis">
+                                        <div><span class="meta-label">FAX</span> {{ report.total_fax }}</div>
+                                        <div><span class="meta-label">Erreurs</span> {{ report.erreurs_totales }}</div>
+                                        <div><span class="meta-label">Taux</span> {{ report.taux_reussite }}%</div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted">Aucun rapport en base.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            </main>
+        </div>
     </div>
 </body>
 </html>

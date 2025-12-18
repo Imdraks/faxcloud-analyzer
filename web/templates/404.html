@@ -6,17 +6,34 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <h1>❌ Erreur 404</h1>
-        </header>
-        <main class="main">
-            <section class="section" style="text-align: center;">
-                <h2>Page non trouvée</h2>
-                <p class="text-muted">La page que vous cherchez n'existe pas.</p>
-                <a href="/" class="btn">Retour à l'accueil</a>
-            </section>
-        </main>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-title">FaxCloud Analyzer</div>
+                <div class="brand-subtitle">Interface interne</div>
+            </div>
+            <nav class="side-nav">
+                <a class="side-link" href="/">Accueil</a>
+                <a class="side-link" href="/reports">Rapports</a>
+            </nav>
+            <div class="side-footer">v1.0</div>
+        </aside>
+
+        <div class="content">
+            <header class="topbar">
+                <div>
+                    <h1 class="page-title">Erreur 404</h1>
+                    <p class="page-subtitle">Page non trouvée</p>
+                </div>
+            </header>
+            <main class="main">
+                <section class="section" style="text-align: center;">
+                    <h2>Page non trouvée</h2>
+                    <p class="text-muted">La page que vous cherchez n'existe pas.</p>
+                    <a href="/" class="btn">Retour à l'accueil</a>
+                </section>
+            </main>
+        </div>
     </div>
 </body>
 </html>
