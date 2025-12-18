@@ -50,52 +50,92 @@ class FaxApp {
         setPercent(0);
 
         let evt = null;
+        let pollTimer = null;
+        let lastProgressAt = Date.now();
 
         const stopEvents = () => {
             try { evt?.close(); } catch (_) {}
             evt = null;
         };
 
+        const stopPolling = () => {
+            if (pollTimer) {
+                window.clearInterval(pollTimer);
+                pollTimer = null;
+            }
+        };
+
+        const applyProgressPayload = (data) => {
+            if (!data.success) throw new Error(data.error || 'Erreur');
+
+            const message = data.message || '';
+            const backendPercent = Number.isFinite(data.percent) ? data.percent : 0;
+
+            // Map backend 0..100 to overall 35..100 (upload is 0..35)
+            const overall = 35 + (backendPercent * 0.65);
+            setPercent(overall);
+
+            const label = message ? `${message}` : 'Traitement…';
+            setStatus(label);
+
+            if (data.done) {
+                if (data.error) throw new Error(data.error);
+                if (data.report_id) {
+                    setStatus('Terminé. Redirection…');
+                    setPercent(100);
+                    stopEvents();
+                    stopPolling();
+                    window.location.href = `/report/${data.report_id}`;
+                }
+            }
+        };
+
+        const startPolling = (uploadId) => {
+            if (pollTimer) return;
+            stopEvents();
+
+            pollTimer = window.setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/upload/${encodeURIComponent(uploadId)}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const data = await res.json();
+                    applyProgressPayload(data);
+                } catch (err) {
+                    // Keep polling briefly; errors can be transient.
+                }
+            }, 750);
+        };
+
         const startEvents = (uploadId) => {
             stopEvents();
+            stopPolling();
 
             evt = new EventSource(`/api/upload/${encodeURIComponent(uploadId)}/events`);
 
             evt.addEventListener('progress', (e) => {
                 try {
                     const data = JSON.parse(e.data);
-                    if (!data.success) throw new Error(data.error || 'Erreur');
-
-                    const stage = data.stage || 'processing';
-                    const message = data.message || '';
-                    const backendPercent = Number.isFinite(data.percent) ? data.percent : 0;
-
-                    // Map backend 0..100 to overall 35..100 (upload is 0..35)
-                    const overall = 35 + (backendPercent * 0.65);
-                    setPercent(overall);
-
-                    const label = message ? `${message}` : 'Traitement…';
-                    setStatus(label);
-
-                    if (data.done) {
-                        if (data.error) throw new Error(data.error);
-                        if (data.report_id) {
-                            setStatus('Terminé. Redirection…');
-                            setPercent(100);
-                            stopEvents();
-                            window.location.href = `/report/${data.report_id}`;
-                        }
-                    }
+                    lastProgressAt = Date.now();
+                    applyProgressPayload(data);
                 } catch (err) {
-                    stopEvents();
-                    msgDiv.innerHTML = `<div class="error">✗ Erreur: ${err.message}</div>`;
-                    setStatus('Erreur');
+                    // If SSE payload breaks, fall back to polling.
+                    startPolling(uploadId);
                 }
             });
 
             evt.addEventListener('error', () => {
-                // Best-effort: SSE may fail due to proxies; keep UI stable.
+                // Best-effort: SSE may fail due to proxies; fall back to polling.
+                startPolling(uploadId);
             });
+
+            // If SSE is connected but no events come through, fall back to polling.
+            window.setTimeout(() => {
+                if (!evt) return;
+                if (Date.now() - lastProgressAt > 2000) {
+                    startPolling(uploadId);
+                }
+            }, 2200);
         };
 
         try {
@@ -132,6 +172,7 @@ class FaxApp {
             startEvents(uploadId);
         } catch (error) {
             stopEvents();
+            stopPolling();
             msgDiv.innerHTML = `<div class="error">✗ Erreur: ${error.message}</div>`;
             progressDiv.classList.add('hidden');
         }

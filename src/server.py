@@ -523,6 +523,29 @@ def create_app() -> Flask:
 
         return send_file(str(qr_path), mimetype="image/png")
 
+    @app.route("/api/upload/<upload_id>", methods=["GET"])
+    def api_upload_status(upload_id: str):
+        job = _get_job(upload_id)
+        if not job:
+            return {"success": False, "done": True, "error": "Upload inconnu"}, 404
+
+        payload = {
+            "success": True,
+            "upload_id": upload_id,
+            "percent": int(job.get("percent", 0)),
+            "stage": job.get("stage") or "processing",
+            "message": job.get("message") or "",
+            "done": bool(job.get("done")),
+            "report_id": job.get("report_id"),
+            "error": job.get("error"),
+        }
+
+        if payload["done"]:
+            _set_job(upload_id, expires_at=time.time() + 60)
+            _prune_jobs()
+
+        return jsonify(payload)
+
     @app.route("/api/upload/<upload_id>/events", methods=["GET"])
     def api_upload_events(upload_id: str):
         def generate():
