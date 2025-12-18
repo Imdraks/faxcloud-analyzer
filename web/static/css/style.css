@@ -447,6 +447,13 @@ html, body {
     display: flex;
     gap: 0.6rem;
     flex-wrap: wrap;
+    grid-column: 1 / -1;
+    justify-content: center;
+    align-items: center;
+}
+
+.filter-bar .btn {
+    padding: 0.6rem 1rem;
 }
 
 .filter-summary {
