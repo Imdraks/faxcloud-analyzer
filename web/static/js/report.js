@@ -39,6 +39,7 @@ class ReportEntries {
     this.tbody = document.querySelector('#entriesTableBody');
     this.status = document.querySelector('#entriesStatus');
     this.pagination = document.querySelector('#entriesPagination');
+    this.filterSummary = document.getElementById('entriesFilterSummary');
 
     this.typeFilter = document.getElementById('entriesTypeFilter');
     this.validFilter = document.getElementById('entriesValidFilter');
@@ -52,6 +53,7 @@ class ReportEntries {
     this.clearBtn = document.getElementById('entriesClearFilters');
     this.exportFilteredBtn = document.getElementById('entriesExportFilteredCsv');
     this.exportFilteredJsonBtn = document.getElementById('entriesExportFilteredJson');
+    this.copyLinkBtn = document.getElementById('entriesCopyLink');
 
     this._searchDebounceTimer = null;
 
@@ -78,9 +80,55 @@ class ReportEntries {
     this.orderSelect?.addEventListener('change', () => this.applyFilters());
     this.exportFilteredBtn?.addEventListener('click', () => this.exportFilteredCsv());
     this.exportFilteredJsonBtn?.addEventListener('click', () => this.exportFilteredJson());
+    this.copyLinkBtn?.addEventListener('click', () => this.copyLink());
 
     // Restore state from URL (filters + page)
     this.restoreFromUrl();
+  }
+
+  renderFilterSummary() {
+    if (!this.filterSummary) return;
+
+    const chips = [];
+    const add = (label, value) => {
+      if (value === null || value === undefined) return;
+      const v = String(value).trim();
+      if (!v) return;
+      chips.push({ label, value: v });
+    };
+
+    add('Type', this.filters.type);
+    add('Valide', this.filters.valide === '1' ? 'Oui' : (this.filters.valide === '0' ? 'Non' : ''));
+    add('Du', this.filters.date_from);
+    add('Au', this.filters.date_to);
+    add('Pages ≥', this.filters.pages_min);
+    add('Pages ≤', this.filters.pages_max);
+    add('Recherche', this.filters.q);
+    add('Tri', this.filters.order === 'desc' ? 'Date ↓' : 'Date ↑');
+
+    if (chips.length === 0) {
+      this.filterSummary.innerHTML = '<span class="text-muted">Aucun filtre actif</span>';
+      return;
+    }
+
+    this.filterSummary.innerHTML = chips
+      .map((c) => `<span class="chip"><span class="chip-k">${escapeHtml(c.label)}</span> ${escapeHtml(c.value)}</span>`)
+      .join(' ');
+  }
+
+  async copyLink() {
+    // Ensure URL reflects latest UI state
+    this._readFiltersFromUI();
+    this._updateUrl(this.page || 1);
+    const url = window.location.href;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      this.setStatus('Lien copié dans le presse-papiers.');
+    } catch (e) {
+      // Fallback for older browsers / permissions
+      window.prompt('Copiez le lien :', url);
+    }
   }
 
   restoreFromUrl() {
@@ -220,6 +268,7 @@ class ReportEntries {
 
     for (const r of rows) {
       const tr = document.createElement('tr');
+      if (!r.valide) tr.classList.add('row-invalid');
       tr.innerHTML = `
         <td>${escapeHtml(r.datetime)}</td>
         <td>${escapeHtml(r.type)}</td>
@@ -298,6 +347,7 @@ class ReportEntries {
       const shown = (data.entries || []).length;
       const from = (this.page - 1) * this.limit + (shown > 0 ? 1 : 0);
       const to = (this.page - 1) * this.limit + shown;
+      this.renderFilterSummary();
       this.setStatus(`Page ${this.page}/${this.pageCount} — lignes ${from}-${to} / ${this.total}`);
       this.renderPagination();
     } catch (e) {
