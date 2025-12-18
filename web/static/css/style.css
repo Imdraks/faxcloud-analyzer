@@ -42,12 +42,6 @@ html, body {
     gap: 1.25rem;
 }
 
-/* When nav is icon-only, the sidebar can be narrower */
-.sidebar:has(.side-link.icon-only) {
-    width: 140px;
-    flex-basis: 140px;
-}
-
 .brand {
     padding: 0.75rem 0.75rem;
     border: 1px solid var(--border);
