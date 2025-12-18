@@ -42,6 +42,12 @@ html, body {
     gap: 1.25rem;
 }
 
+/* When nav is icon-only, the sidebar can be narrower */
+.sidebar:has(.side-link.icon-only) {
+    width: 140px;
+    flex-basis: 140px;
+}
+
 .brand {
     padding: 0.75rem 0.75rem;
     border: 1px solid var(--border);
@@ -93,6 +99,27 @@ html, body {
     width: 18px;
     height: 18px;
     flex: 0 0 18px;
+}
+
+.side-link.icon-only {
+    justify-content: center;
+    padding: 0.9rem;
+}
+
+.side-link.icon-only .side-link-left {
+    gap: 0;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .side-link:hover {
