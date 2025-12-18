@@ -7,3 +7,6 @@ logs/
 data/imports/*
 data/reports/*.json
 data/reports_qr/*.png
+
+# Build / packaging (ignored per request)
+exe/

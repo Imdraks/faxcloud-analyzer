@@ -20,6 +20,11 @@ if not "%OPEN_BROWSER%"=="" (
 	start "" "http://127.0.0.1:%PORT%/"
 )
 
-python -m src.server --host 127.0.0.1 --port %PORT%
+set PY=%~dp0.venv\Scripts\python.exe
+if exist "%PY%" (
+	"%PY%" -m src.server --host 127.0.0.1 --port %PORT%
+) else (
+	python -m src.server --host 127.0.0.1 --port %PORT%
+)
 
 endlocal

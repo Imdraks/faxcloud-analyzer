@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 
 
 DEBUG = False
@@ -25,7 +26,11 @@ class Settings:
 
 
 def _build_settings() -> Settings:
-    project_root = Path(__file__).resolve().parents[2]
+    if getattr(sys, "frozen", False):
+        # Running as a packaged executable (PyInstaller): keep data next to the EXE.
+        project_root = Path(sys.executable).resolve().parent
+    else:
+        project_root = Path(__file__).resolve().parents[2]
     data_dir = project_root / "data"
     return Settings(
         base_dir=project_root,

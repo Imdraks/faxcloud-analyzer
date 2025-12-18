@@ -496,16 +496,14 @@ def get_report_entries(
 
     conn = _connect()
     cur = conn.cursor()
-    cur.execute(
-        f"SELECT COUNT(*) AS total FROM fax_entries WHERE {where_sql}",
-        tuple(params),
-    )
-    total = int(cur.fetchone()["total"])
 
+    # Optimization: fetch page + total in one query using a window function.
+    # If the page is empty, fall back to COUNT(*).
     cur.execute(
         f"""
         SELECT id, report_id, fax_id, utilisateur, type,
-               numero_original, numero_normalise, valide, pages, datetime, erreurs
+               numero_original, numero_normalise, valide, pages, datetime, erreurs,
+               COUNT(*) OVER() AS total_count
         FROM fax_entries
         WHERE {where_sql}
         {order_sql}
@@ -513,9 +511,22 @@ def get_report_entries(
         """,
         tuple(params + [limit, offset]),
     )
-    rows = [dict(r) for r in cur.fetchall()]
+    fetched = cur.fetchall()
+    if fetched:
+        total = int(fetched[0]["total_count"])
+        rows = [dict(r) for r in fetched]
+        for r in rows:
+            r.pop("total_count", None)
+        conn.close()
+        return rows, total
+
+    cur.execute(
+        f"SELECT COUNT(*) AS total FROM fax_entries WHERE {where_sql}",
+        tuple(params),
+    )
+    total = int(cur.fetchone()["total"])
     conn.close()
-    return rows, total
+    return [], total
 
 
 def delete_report(report_id: str) -> None:

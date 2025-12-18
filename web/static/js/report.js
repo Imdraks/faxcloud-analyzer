@@ -1,5 +1,5 @@
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+async function fetchJson(url, { signal } = {}) {
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' }, signal });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`HTTP ${res.status}: ${text}`);
@@ -47,14 +47,13 @@ class ReportEntries {
     this.orderSelect = document.getElementById('entriesOrder');
     this.applyBtn = document.getElementById('entriesApplyFilters');
     this.clearBtn = document.getElementById('entriesClearFilters');
-    this.exportFilteredBtn = document.getElementById('entriesExportFilteredCsv');
-    this.exportFilteredJsonBtn = document.getElementById('entriesExportFilteredJson');
-    this.copyLinkBtn = document.getElementById('entriesCopyLink');
 
     this._searchDebounceTimer = null;
+    this._abortController = null;
 
     this.applyBtn?.addEventListener('click', () => this.applyFilters());
     this.clearBtn?.addEventListener('click', () => this.clearFilters());
+
     this.searchInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.applyFilters();
     });
@@ -70,11 +69,7 @@ class ReportEntries {
     this.validFilter?.addEventListener('change', () => this.applyFilters());
     this.dateFromInput?.addEventListener('change', () => this.applyFilters());
     this.dateToInput?.addEventListener('change', () => this.applyFilters());
-
     this.orderSelect?.addEventListener('change', () => this.applyFilters());
-    this.exportFilteredBtn?.addEventListener('click', () => this.exportFilteredCsv());
-    this.exportFilteredJsonBtn?.addEventListener('click', () => this.exportFilteredJson());
-    this.copyLinkBtn?.addEventListener('click', () => this.copyLink());
 
     // Restore state from URL (filters + page)
     this.restoreFromUrl();
@@ -106,21 +101,6 @@ class ReportEntries {
     this.filterSummary.innerHTML = chips
       .map((c) => `<span class="chip"><span class="chip-k">${escapeHtml(c.label)}</span> ${escapeHtml(c.value)}</span>`)
       .join(' ');
-  }
-
-  async copyLink() {
-    // Ensure URL reflects latest UI state
-    this._readFiltersFromUI();
-    this._updateUrl(this.page || 1);
-    const url = window.location.href;
-
-    try {
-      await navigator.clipboard.writeText(url);
-      this.setStatus('Lien copié dans le presse-papiers.');
-    } catch (e) {
-      // Fallback for older browsers / permissions
-      window.prompt('Copiez le lien :', url);
-    }
   }
 
   restoreFromUrl() {
@@ -206,39 +186,53 @@ class ReportEntries {
     this.loadPage(1);
   }
 
-  _buildExportQueryParams() {
-      // Removed filtered export and copy link buttons
-    if (this.filters.q) params.set('q', this.filters.q);
-    if (this.filters.date_from) params.set('date_from', this.filters.date_from);
-    if (this.filters.date_to) params.set('date_to', this.filters.date_to);
-    if (this.filters.order) params.set('order', this.filters.order);
-    return params.toString();
-  }
-
-  exportFilteredCsv() {
-    this._readFiltersFromUI();
-    const qs = this._buildExportQueryParams();
-    const url = `/api/report/${encodeURIComponent(this.reportId)}/export.csv${qs ? `?${qs}` : ''}`;
-    window.location.href = url;
-  }
-
-  exportFilteredJson() {
-    this._readFiltersFromUI();
-    const qs = this._buildExportQueryParams();
-    const url = `/api/report/${encodeURIComponent(this.reportId)}/export.entries.json${qs ? `?${qs}` : ''}`;
-    window.location.href = url;
-  }
-
-      // Removed event listeners for filtered export and copy link
+  setRows(rows) {
+    if (!this.tbody) return;
+    this.tbody.innerHTML = '';
     const fragment = document.createDocumentFragment();
 
     for (const r of rows) {
       const tr = document.createElement('tr');
       if (!r.valide) tr.classList.add('row-invalid');
-      // Feature removed from UI
+      tr.innerHTML = `
+        <td>${escapeHtml(r.datetime)}</td>
+        <td>${escapeHtml(r.type)}</td>
+        <td>${escapeHtml(r.pages)}</td>
+        <td>${escapeHtml(r.utilisateur)}</td>
+        <td>${escapeHtml(r.numero_normalise || r.numero_original)}</td>
+        <td>${r.valide ? '✓' : '✗'}</td>
+      `;
+      fragment.appendChild(tr);
+    }
+
+    this.tbody.appendChild(fragment);
   }
 
-    // Removed export functions
+  renderPagination() {
+    if (!this.pagination) return;
+    this.pagination.innerHTML = '';
+
+    if (!this.total || this.pageCount <= 1) return;
+
+    const makeBtn = (label, targetPage, { disabled = false, active = false } = {}) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `page-btn${active ? ' active' : ''}`;
+      btn.textContent = label;
+      btn.disabled = disabled;
+      btn.addEventListener('click', () => this.loadPage(targetPage));
+      return btn;
+    };
+
+    this.pagination.appendChild(makeBtn('«', this.page - 1, { disabled: this.page <= 1 }));
+
+    const windowSize = 10;
+    let start = Math.max(1, this.page - Math.floor(windowSize / 2));
+    let end = start + windowSize - 1;
+    if (end > this.pageCount) {
+      end = this.pageCount;
+      start = Math.max(1, end - windowSize + 1);
+    }
 
     for (let p = start; p <= end; p++) {
       this.pagination.appendChild(makeBtn(String(p), p, { active: p === this.page }));
@@ -249,24 +243,29 @@ class ReportEntries {
 
   async loadPage(page) {
     try {
+      if (this._abortController) {
+        try { this._abortController.abort(); } catch (_) {}
+      }
+      this._abortController = new AbortController();
+
       this.setStatus('Chargement…');
+      if (this.tbody) this.tbody.classList.add('is-loading');
 
       const target = Math.max(1, parseInt(page, 10) || 1);
       this._updateUrl(target);
       const offset = (target - 1) * this.limit;
 
       const url = `/api/report/${encodeURIComponent(this.reportId)}/entries?${this._buildQueryParams(offset)}`;
-      const data = await fetchJson(url);
+      const data = await fetchJson(url, { signal: this._abortController.signal });
 
       this.total = data.total;
       this.pageCount = Math.max(1, Math.ceil((this.total || 0) / this.limit));
       this.page = Math.min(this.pageCount, target);
 
-      // Si la page demandée dépasse le total (ex: suppression, changement de total), on recalcule.
       if (this.page !== target) {
         const offset2 = (this.page - 1) * this.limit;
         const url2 = `/api/report/${encodeURIComponent(this.reportId)}/entries?${this._buildQueryParams(offset2)}`;
-        const data2 = await fetchJson(url2);
+        const data2 = await fetchJson(url2, { signal: this._abortController.signal });
         this.total = data2.total;
         this.pageCount = Math.max(1, Math.ceil((this.total || 0) / this.limit));
         this.setRows(data2.entries || []);
@@ -281,9 +280,13 @@ class ReportEntries {
       this.setStatus(`Page ${this.page}/${this.pageCount} — lignes ${from}-${to} / ${this.total}`);
       this.renderPagination();
     } catch (e) {
+      if (e?.name === 'AbortError') {
+        // A newer request replaced this one.
+        return;
+      }
       this.setStatus(`Erreur: ${e.message}`);
     } finally {
-      // nothing
+      if (this.tbody) this.tbody.classList.remove('is-loading');
     }
   }
 }
@@ -313,7 +316,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   const entries = new ReportEntries(reportId);
-  // Handle back/forward navigation
   window.addEventListener('popstate', async () => {
     entries.restoreFromUrl();
     await entries.loadPage(entries.page || 1);

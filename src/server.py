@@ -3,7 +3,11 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import json
 import logging
+import threading
+import time
+import uuid
 from pathlib import Path
 import hashlib
 
@@ -111,6 +115,30 @@ def create_app() -> Flask:
 
     app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
     app.config["UPLOAD_FOLDER"] = str(settings.imports_dir)
+
+    # In-memory upload progress (best-effort) for "real-time" UX.
+    # Note: in multi-process deployments, each process has its own memory.
+    _upload_jobs: dict[str, dict] = {}
+    _upload_jobs_lock = threading.Lock()
+
+    def _set_job(upload_id: str, **updates) -> None:
+        with _upload_jobs_lock:
+            job = _upload_jobs.get(upload_id)
+            if not job:
+                return
+            job.update(updates)
+
+    def _get_job(upload_id: str) -> dict | None:
+        with _upload_jobs_lock:
+            job = _upload_jobs.get(upload_id)
+            return dict(job) if job else None
+
+    def _prune_jobs() -> None:
+        now = time.time()
+        with _upload_jobs_lock:
+            expired = [k for k, v in _upload_jobs.items() if v.get("expires_at", 0) < now]
+            for k in expired:
+                _upload_jobs.pop(k, None)
 
     def _current_user() -> str:
         # Auth retirée: on garde un champ user pour l'audit (valeur par défaut).
@@ -494,6 +522,167 @@ def create_app() -> Flask:
             return {"error": "Fichier QR introuvable"}, 404
 
         return send_file(str(qr_path), mimetype="image/png")
+
+    @app.route("/api/upload/<upload_id>/events", methods=["GET"])
+    def api_upload_events(upload_id: str):
+        def generate():
+            last_payload = None
+            last_ping = 0.0
+            while True:
+                job = _get_job(upload_id)
+                if not job:
+                    payload = {"success": False, "done": True, "error": "Upload inconnu"}
+                    yield f"event: error\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    break
+
+                payload = {
+                    "success": True,
+                    "upload_id": upload_id,
+                    "percent": int(job.get("percent", 0)),
+                    "stage": job.get("stage") or "processing",
+                    "message": job.get("message") or "",
+                    "done": bool(job.get("done")),
+                    "report_id": job.get("report_id"),
+                    "error": job.get("error"),
+                }
+
+                if payload != last_payload:
+                    yield f"event: progress\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    last_payload = payload
+
+                now = time.time()
+                if now - last_ping > 10:
+                    yield ": ping\n\n"
+                    last_ping = now
+
+                if payload["done"]:
+                    _set_job(upload_id, expires_at=time.time() + 60)
+                    break
+
+                time.sleep(0.35)
+
+            _prune_jobs()
+
+        headers = {
+            "Cache-Control": "no-cache",
+            "Content-Type": "text/event-stream",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        }
+        return Response(generate(), headers=headers)
+
+    @app.route("/api/upload_async", methods=["POST"])
+    def api_upload_async():
+        if "file" not in request.files:
+            return {"success": False, "error": "Pas de fichier"}, 400
+
+        f = request.files["file"]
+        if not f.filename:
+            return {"success": False, "error": "Fichier vide"}, 400
+
+        contract_id = request.form.get("contract") or None
+        date_debut = request.form.get("start") or None
+        date_fin = request.form.get("end") or None
+        ip = request.remote_addr
+        user_agent = request.headers.get("User-Agent")
+
+        upload_id = str(uuid.uuid4())
+        _prune_jobs()
+        with _upload_jobs_lock:
+            _upload_jobs[upload_id] = {
+                "created_at": time.time(),
+                "expires_at": time.time() + 3600,
+                "percent": 0,
+                "stage": "upload",
+                "message": "Réception du fichier…",
+                "done": False,
+                "report_id": None,
+                "error": None,
+            }
+
+        filename = secure_filename(f.filename)
+        unique_name = f"{upload_id}_{filename}" if filename else upload_id
+        filepath = Path(app.config["UPLOAD_FOLDER"]) / unique_name
+        try:
+            f.save(str(filepath))
+        except Exception as e:
+            _set_job(upload_id, done=True, error=str(e), stage="error", percent=100)
+            return {"success": False, "error": "Échec sauvegarde fichier"}, 500
+
+        def run_job():
+            try:
+                _set_job(upload_id, stage="hash", message="Vérification du fichier…", percent=5)
+
+                try:
+                    size = filepath.stat().st_size
+                except Exception:
+                    size = None
+
+                sha256 = None
+                try:
+                    h = hashlib.sha256()
+                    with open(filepath, "rb") as fp:
+                        for chunk in iter(lambda: fp.read(1024 * 1024), b""):
+                            h.update(chunk)
+                    sha256 = h.hexdigest()
+                except Exception:
+                    sha256 = None
+
+                _set_job(upload_id, stage="import", message="Import des données…", percent=15)
+                rows = import_faxcloud_export(str(filepath))
+
+                _set_job(upload_id, stage="analyze", message="Analyse…", percent=55)
+                analysis = analyze_data(rows, contract_id, date_debut, date_fin)
+
+                _set_job(upload_id, stage="report", message="Génération du rapport…", percent=75)
+                report_data = generate_report(analysis)
+
+                _set_job(upload_id, stage="save", message="Sauvegarde…", percent=90)
+                insert_report_to_db(
+                    report_data["report_id"],
+                    report_data,
+                    report_data.get("qr_path"),
+                    source_filename=filename,
+                    source_filesize=size,
+                    source_sha256=sha256,
+                )
+
+                insert_audit_event(
+                    action="upload",
+                    user=_current_user(),
+                    report_id=report_data["report_id"],
+                    ip=ip,
+                    user_agent=user_agent,
+                    meta={
+                        "filename": filename,
+                        "filesize": size,
+                        "sha256": sha256,
+                        "contract": contract_id,
+                        "start": date_debut,
+                        "end": date_fin,
+                        "async": True,
+                    },
+                )
+
+                _set_job(
+                    upload_id,
+                    stage="done",
+                    message="Terminé",
+                    percent=100,
+                    done=True,
+                    report_id=report_data["report_id"],
+                    error=None,
+                )
+            except Exception as e:
+                _set_job(upload_id, stage="error", message="Erreur", percent=100, done=True, error=str(e))
+            finally:
+                try:
+                    filepath.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        threading.Thread(target=run_job, daemon=True).start()
+        return {"success": True, "upload_id": upload_id}, 200
 
     @app.route("/api/upload", methods=["POST"])
     def api_upload():

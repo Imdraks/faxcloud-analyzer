@@ -33,26 +33,106 @@ class FaxApp {
 
         const msgDiv = document.getElementById('uploadMessage');
         const progressDiv = document.getElementById('uploadProgress');
-        
-        try {
-            progressDiv.classList.remove('hidden');
+        const progressFill = document.getElementById('progressFill');
+        const statusEl = document.getElementById('uploadStatus');
 
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
+        const setStatus = (t) => {
+            if (statusEl) statusEl.textContent = t;
+        };
+        const setPercent = (p) => {
+            const pct = Math.max(0, Math.min(100, Math.round(p)));
+            if (progressFill) progressFill.style.width = `${pct}%`;
+        };
+
+        msgDiv.innerHTML = '';
+        progressDiv.classList.remove('hidden');
+        setStatus('Envoi du fichier…');
+        setPercent(0);
+
+        let evt = null;
+
+        const stopEvents = () => {
+            try { evt?.close(); } catch (_) {}
+            evt = null;
+        };
+
+        const startEvents = (uploadId) => {
+            stopEvents();
+
+            evt = new EventSource(`/api/upload/${encodeURIComponent(uploadId)}/events`);
+
+            evt.addEventListener('progress', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (!data.success) throw new Error(data.error || 'Erreur');
+
+                    const stage = data.stage || 'processing';
+                    const message = data.message || '';
+                    const backendPercent = Number.isFinite(data.percent) ? data.percent : 0;
+
+                    // Map backend 0..100 to overall 35..100 (upload is 0..35)
+                    const overall = 35 + (backendPercent * 0.65);
+                    setPercent(overall);
+
+                    const label = message ? `${message}` : 'Traitement…';
+                    setStatus(label);
+
+                    if (data.done) {
+                        if (data.error) throw new Error(data.error);
+                        if (data.report_id) {
+                            setStatus('Terminé. Redirection…');
+                            setPercent(100);
+                            stopEvents();
+                            window.location.href = `/report/${data.report_id}`;
+                        }
+                    }
+                } catch (err) {
+                    stopEvents();
+                    msgDiv.innerHTML = `<div class="error">✗ Erreur: ${err.message}</div>`;
+                    setStatus('Erreur');
+                }
             });
 
-            const data = await response.json();
+            evt.addEventListener('error', () => {
+                // Best-effort: SSE may fail due to proxies; keep UI stable.
+            });
+        };
 
-            if (data.success) {
-                msgDiv.innerHTML = `<div class="success">✓ Rapport créé! ID: ${data.report_id} — FAX: ${data.total_fax ?? ''} — erreurs: ${data.errors ?? ''}</div>`;
-                setTimeout(() => window.location.href = `/report/${data.report_id}`, 900);
-            } else {
-                msgDiv.innerHTML = `<div class="error">✗ Erreur: ${data.error}</div>`;
-            }
+        try {
+            const uploadId = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/upload_async');
+
+                xhr.upload.onprogress = (e) => {
+                    if (!e.lengthComputable) return;
+                    const pct = (e.loaded / e.total) * 35;
+                    setPercent(pct);
+                    setStatus(`Envoi du fichier… ${Math.round((e.loaded / e.total) * 100)}%`);
+                };
+
+                xhr.onload = () => {
+                    try {
+                        const data = JSON.parse(xhr.responseText || '{}');
+                        if (!xhr.status || xhr.status >= 400) {
+                            throw new Error(data.error || `HTTP ${xhr.status}`);
+                        }
+                        if (!data.success) throw new Error(data.error || 'Erreur');
+                        resolve(data.upload_id);
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+
+                xhr.onerror = () => reject(new Error('Erreur réseau'));
+                xhr.send(formData);
+            });
+
+            setPercent(35);
+            setStatus('Traitement…');
+            startEvents(uploadId);
         } catch (error) {
+            stopEvents();
             msgDiv.innerHTML = `<div class="error">✗ Erreur: ${error.message}</div>`;
-        } finally {
             progressDiv.classList.add('hidden');
         }
     }

@@ -334,6 +334,11 @@ html, body {
     transition: width 0.3s;
 }
 
+/* Report entries loading state */
+#entriesTableBody.is-loading {
+    opacity: 0.6;
+}
+
 .hidden {
     display: none !important;
 }
