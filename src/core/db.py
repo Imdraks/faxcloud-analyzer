@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 from .config import settings, ensure_directories
@@ -87,13 +87,119 @@ def init_database() -> None:
         "ALTER TABLE reports ADD COLUMN source_filename TEXT",
         "ALTER TABLE reports ADD COLUMN source_filesize INTEGER",
         "ALTER TABLE reports ADD COLUMN source_sha256 TEXT",
+        "ALTER TABLE fax_entries ADD COLUMN datetime_ts INTEGER",
     ):
         try:
             cur.execute(stmt)
         except sqlite3.OperationalError:
             pass
 
+    # Indexes (best-effort) for faster filtering/pagination on large reports
+    for stmt in (
+        "CREATE INDEX IF NOT EXISTS idx_fax_entries_report_ts ON fax_entries(report_id, datetime_ts)",
+        "CREATE INDEX IF NOT EXISTS idx_fax_entries_report_type ON fax_entries(report_id, type)",
+        "CREATE INDEX IF NOT EXISTS idx_fax_entries_report_valide ON fax_entries(report_id, valide)",
+        "CREATE INDEX IF NOT EXISTS idx_fax_entries_report_pages ON fax_entries(report_id, pages)",
+    ):
+        try:
+            cur.execute(stmt)
+        except sqlite3.OperationalError:
+            pass
+
+    # Backfill datetime_ts for existing rows (best-effort)
+    try:
+        _backfill_datetime_ts(cur)
+        conn.commit()
+    except Exception:
+        # best-effort: do not prevent app start
+        pass
+
     conn.close()
+
+
+def _parse_datetime_to_ts(value) -> Optional[int]:
+    if value is None:
+        return None
+
+    # Some pandas types stringify nicely; we just parse the string.
+    text = str(value).strip()
+    if not text:
+        return None
+
+    # Normalize common ISO variants
+    iso_text = text.replace("Z", "+00:00")
+
+    # Try python ISO parsing first
+    try:
+        dt = datetime.fromisoformat(iso_text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+    except Exception:
+        pass
+
+    # Try known common formats
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y",
+    ):
+        try:
+            dt = datetime.strptime(text, fmt)
+            dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp())
+        except Exception:
+            continue
+
+    return None
+
+
+def _date_str_to_range(date_str: str) -> Tuple[Optional[int], Optional[int]]:
+    """Parse YYYY-MM-DD to [start_ts, end_ts_exclusive] in UTC."""
+    if not date_str:
+        return None, None
+    s = str(date_str).strip()
+    if not s:
+        return None, None
+    try:
+        d = datetime.strptime(s, "%Y-%m-%d")
+        start = d.replace(tzinfo=timezone.utc)
+        end = (d + timedelta(days=1)).replace(tzinfo=timezone.utc)
+        return int(start.timestamp()), int(end.timestamp())
+    except Exception:
+        return None, None
+
+
+def _backfill_datetime_ts(cur: sqlite3.Cursor) -> None:
+    # If the column doesn't exist yet, this will throw.
+    cur.execute("SELECT COUNT(*) AS cnt FROM fax_entries WHERE datetime_ts IS NULL")
+    missing = int(cur.fetchone()["cnt"])
+    if missing <= 0:
+        return
+
+    batch_size = 5000
+    while True:
+        cur.execute(
+            "SELECT id, datetime FROM fax_entries WHERE datetime_ts IS NULL LIMIT ?",
+            (batch_size,),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            break
+
+        for r in rows:
+            entry_id = r["id"]
+            ts = _parse_datetime_to_ts(r["datetime"])
+            if ts is None:
+                # Leave NULL if unparseable
+                continue
+            cur.execute(
+                "UPDATE fax_entries SET datetime_ts = ? WHERE id = ?",
+                (ts, entry_id),
+            )
 
 
 def insert_audit_event(
@@ -191,12 +297,13 @@ def insert_report_to_db(
 
     entries = report_json.get("entries", [])
     for entry in entries:
+        dt_ts = _parse_datetime_to_ts(entry.get("datetime"))
         cur.execute(
             """
             INSERT OR REPLACE INTO fax_entries (
                 id, report_id, fax_id, utilisateur, type,
-                numero_original, numero_normalise, valide, pages, datetime, erreurs
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                numero_original, numero_normalise, valide, pages, datetime, datetime_ts, erreurs
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 entry.get("id"),
@@ -209,6 +316,7 @@ def insert_report_to_db(
                 1 if entry.get("valide") else 0,
                 entry.get("pages"),
                 entry.get("datetime"),
+                dt_ts,
                 json.dumps(entry.get("erreurs", [])),
             ),
         )
@@ -318,6 +426,11 @@ def get_report_entries(
     entry_type: Optional[str] = None,
     valide: Optional[int] = None,
     q: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    pages_min: Optional[int] = None,
+    pages_max: Optional[int] = None,
+    order: str = "asc",
 ) -> Tuple[List[Dict], int]:
     """Retourne une page d'entrées + le total filtré d'entrées pour un rapport.
 
@@ -347,7 +460,39 @@ def get_report_entries(
         )
         params.extend([q_like, q_like, q_like])
 
+    # Date filtering relies on datetime_ts when available.
+    if date_from:
+        start_ts, _ = _date_str_to_range(date_from)
+        if start_ts is not None:
+            where.append("datetime_ts >= ?")
+            params.append(start_ts)
+
+    if date_to:
+        _, end_exclusive = _date_str_to_range(date_to)
+        if end_exclusive is not None:
+            where.append("datetime_ts < ?")
+            params.append(end_exclusive)
+
+    if pages_min is not None:
+        try:
+            pmin = int(pages_min)
+            where.append("pages >= ?")
+            params.append(pmin)
+        except Exception:
+            pass
+
+    if pages_max is not None:
+        try:
+            pmax = int(pages_max)
+            where.append("pages <= ?")
+            params.append(pmax)
+        except Exception:
+            pass
+
     where_sql = " AND ".join(where)
+
+    order_dir = "ASC" if str(order).lower() != "desc" else "DESC"
+    order_sql = f"ORDER BY COALESCE(datetime_ts, 0) {order_dir}, datetime {order_dir}"
 
     conn = _connect()
     cur = conn.cursor()
@@ -363,7 +508,7 @@ def get_report_entries(
                numero_original, numero_normalise, valide, pages, datetime, erreurs
         FROM fax_entries
         WHERE {where_sql}
-        ORDER BY datetime ASC
+        {order_sql}
         LIMIT ? OFFSET ?
         """,
         tuple(params + [limit, offset]),

@@ -168,6 +168,11 @@ def create_app() -> Flask:
         entry_type = request.args.get("type") or None
         valide = request.args.get("valide")
         q = request.args.get("q") or None
+        date_from = request.args.get("date_from") or None
+        date_to = request.args.get("date_to") or None
+        pages_min = request.args.get("pages_min")
+        pages_max = request.args.get("pages_max")
+        order = request.args.get("order") or "asc"
         try:
             offset_i = int(offset)
         except Exception:
@@ -184,6 +189,20 @@ def create_app() -> Flask:
             except Exception:
                 valide_i = None
 
+        pages_min_i = None
+        if pages_min is not None and str(pages_min).strip() != "":
+            try:
+                pages_min_i = int(pages_min)
+            except Exception:
+                pages_min_i = None
+
+        pages_max_i = None
+        if pages_max is not None and str(pages_max).strip() != "":
+            try:
+                pages_max_i = int(pages_max)
+            except Exception:
+                pages_max_i = None
+
         rows, total = get_report_entries(
             report_id,
             offset=offset_i,
@@ -191,13 +210,27 @@ def create_app() -> Flask:
             entry_type=entry_type,
             valide=valide_i,
             q=q,
+            date_from=date_from,
+            date_to=date_to,
+            pages_min=pages_min_i,
+            pages_max=pages_max_i,
+            order=order,
         )
         return jsonify({
             "report_id": report_id,
             "offset": offset_i,
             "limit": limit_i,
             "total": total,
-            "filters": {"type": entry_type, "valide": valide_i, "q": q},
+            "filters": {
+                "type": entry_type,
+                "valide": valide_i,
+                "q": q,
+                "date_from": date_from,
+                "date_to": date_to,
+                "pages_min": pages_min_i,
+                "pages_max": pages_max_i,
+                "order": order,
+            },
             "entries": rows,
         })
 
@@ -230,13 +263,53 @@ def create_app() -> Flask:
         if not report:
             return {"error": "Rapport non trouvé"}, 404
 
+        # Optional filters for export (same as /entries)
+        entry_type = request.args.get("type") or None
+        valide = request.args.get("valide")
+        q = request.args.get("q") or None
+        date_from = request.args.get("date_from") or None
+        date_to = request.args.get("date_to") or None
+        pages_min = request.args.get("pages_min")
+        pages_max = request.args.get("pages_max")
+        order = request.args.get("order") or "asc"
+
+        valide_i = None
+        if valide is not None and str(valide).strip() != "":
+            try:
+                valide_i = int(valide)
+            except Exception:
+                valide_i = None
+
+        pages_min_i = None
+        if pages_min is not None and str(pages_min).strip() != "":
+            try:
+                pages_min_i = int(pages_min)
+            except Exception:
+                pages_min_i = None
+
+        pages_max_i = None
+        if pages_max is not None and str(pages_max).strip() != "":
+            try:
+                pages_max_i = int(pages_max)
+            except Exception:
+                pages_max_i = None
+
         insert_audit_event(
             action="export_csv",
             user=_current_user(),
             report_id=report_id,
             ip=request.remote_addr,
             user_agent=request.headers.get("User-Agent"),
-            meta=None,
+            meta={
+                "type": entry_type,
+                "valide": valide_i,
+                "q": q,
+                "date_from": date_from,
+                "date_to": date_to,
+                "pages_min": pages_min_i,
+                "pages_max": pages_max_i,
+                "order": order,
+            },
         )
 
         def generate():
@@ -261,7 +334,19 @@ def create_app() -> Flask:
             offset = 0
             page_size = 2000
             while True:
-                rows, total = get_report_entries(report_id, offset=offset, limit=page_size)
+                rows, total = get_report_entries(
+                    report_id,
+                    offset=offset,
+                    limit=page_size,
+                    entry_type=entry_type,
+                    valide=valide_i,
+                    q=q,
+                    date_from=date_from,
+                    date_to=date_to,
+                    pages_min=pages_min_i,
+                    pages_max=pages_max_i,
+                    order=order,
+                )
                 if not rows:
                     break
                 for r in rows:
@@ -288,6 +373,100 @@ def create_app() -> Flask:
         headers = {
             "Content-Disposition": f"attachment; filename={filename}",
             "Content-Type": "text/csv; charset=utf-8",
+        }
+        return Response(generate(), headers=headers)
+
+    @app.route("/api/report/<report_id>/export.entries.json", methods=["GET"])
+    def api_report_export_entries_json(report_id: str):
+        # Streaming JSON array export for entries (optionally filtered)
+        report = get_report_summary_by_id(report_id)
+        if not report:
+            return {"error": "Rapport non trouvé"}, 404
+
+        entry_type = request.args.get("type") or None
+        valide = request.args.get("valide")
+        q = request.args.get("q") or None
+        date_from = request.args.get("date_from") or None
+        date_to = request.args.get("date_to") or None
+        pages_min = request.args.get("pages_min")
+        pages_max = request.args.get("pages_max")
+        order = request.args.get("order") or "asc"
+
+        valide_i = None
+        if valide is not None and str(valide).strip() != "":
+            try:
+                valide_i = int(valide)
+            except Exception:
+                valide_i = None
+
+        pages_min_i = None
+        if pages_min is not None and str(pages_min).strip() != "":
+            try:
+                pages_min_i = int(pages_min)
+            except Exception:
+                pages_min_i = None
+
+        pages_max_i = None
+        if pages_max is not None and str(pages_max).strip() != "":
+            try:
+                pages_max_i = int(pages_max)
+            except Exception:
+                pages_max_i = None
+
+        insert_audit_event(
+            action="export_entries_json",
+            user=_current_user(),
+            report_id=report_id,
+            ip=request.remote_addr,
+            user_agent=request.headers.get("User-Agent"),
+            meta={
+                "type": entry_type,
+                "valide": valide_i,
+                "q": q,
+                "date_from": date_from,
+                "date_to": date_to,
+                "pages_min": pages_min_i,
+                "pages_max": pages_max_i,
+                "order": order,
+            },
+        )
+
+        def generate():
+            yield "["
+            first = True
+            offset = 0
+            page_size = 2000
+            while True:
+                rows, total = get_report_entries(
+                    report_id,
+                    offset=offset,
+                    limit=page_size,
+                    entry_type=entry_type,
+                    valide=valide_i,
+                    q=q,
+                    date_from=date_from,
+                    date_to=date_to,
+                    pages_min=pages_min_i,
+                    pages_max=pages_max_i,
+                    order=order,
+                )
+                if not rows:
+                    break
+                for r in rows:
+                    if first:
+                        first = False
+                    else:
+                        yield ","
+                    yield jsonify(r).get_data(as_text=True)
+                offset += len(rows)
+                if offset >= total:
+                    break
+            yield "]"
+
+        filename = f"faxcloud_report_{report_id}_entries.json"
+        headers = {
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Type": "application/json; charset=utf-8",
         }
         return Response(generate(), headers=headers)
 
