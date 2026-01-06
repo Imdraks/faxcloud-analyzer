@@ -42,6 +42,7 @@ def api_get_reports():
     return jsonify(reports), 200
 
 @bp_api.route('/reports/<int:report_id>', methods=['GET'])
+@bp_api.route('/report/<int:report_id>', methods=['GET'])
 def api_get_report(report_id):
     """Récupérer les détails d'un rapport"""
     report = data_service.get_report(report_id)
@@ -110,7 +111,7 @@ def api_trends():
 def api_health():
     """Vérifier l'état du serveur"""
     return jsonify({
-        'status': 'online',
+        'status': 'healthy',
         'version': '3.0',
         'service': 'FaxCloud Analyzer'
     }), 200

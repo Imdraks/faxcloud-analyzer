@@ -4,7 +4,7 @@ Structure propre et modulaire
 """
 import os
 import logging
-from flask import Flask
+from flask import Flask, render_template, request
 from flask_compress import Compress
 from config.settings import DEBUG, LOG_LEVEL, LOG_FILE
 
@@ -50,12 +50,16 @@ def create_app(config=None):
     # ========== ERROR HANDLERS ==========
     @app.errorhandler(404)
     def not_found(e):
-        return {'error': 'Not found'}, 404
+        if request.path.startswith('/api/'):
+            return {'error': 'Not found'}, 404
+        return render_template('404.html'), 404
     
     @app.errorhandler(500)
     def server_error(e):
         logger.error(f"Server error: {e}")
-        return {'error': 'Internal server error'}, 500
+        if request.path.startswith('/api/'):
+            return {'error': 'Internal server error'}, 500
+        return render_template('500.html'), 500
     
     logger.info("[OK] Application initialized successfully")
     return app

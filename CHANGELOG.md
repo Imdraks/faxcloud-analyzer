@@ -1,5 +1,39 @@
 # 📝 CHANGELOG - FaxCloud Analyzer
 
+## [3.1.0] - 2026-01-06 🧹
+
+### 🧹 Nettoyage Major
+- **Suppression de 25+ fichiers redondants**:
+  - 3 README fusionnés en 1 (README.md)
+  - 2 QUICK_START dupliqués supprimés
+  - 10+ fichiers de documentation obsolètes retirés
+  - 4 scripts batch consolidés en 1 (start.bat)
+- **Suppression du dossier web/**: Architecture dupliquée avec app/
+- **Suppression des templates -v2**: Versions non utilisées
+- **Suppression des fichiers de test éparpillés**: Centralisés dans tests/
+
+### 🔧 Améliorations
+- **DataService amélioré**: Support MySQL avec fallback mémoire automatique
+- **Structure clarifiée**: Un seul point d'entrée (run.py)
+- **Documentation consolidée**: README concis et complet
+- **Dépendance ajoutée**: tabulate pour le CLI
+
+### 📁 Fichiers Supprimés
+- README_CLEAN.md, README_PRO.md
+- QUICKSTART.md, QUICK_START.md
+- STATUS.txt, START_HERE.txt, PROJECT_TREE.txt
+- STRUCTURE.md, FILE_INDEX.md, URLS_AND_ACCESS.md
+- PROJECT_SUMMARY.md, CLEANUP_SUMMARY.md, PATCH_V3_SUMMARY.md
+- DEPLOYMENT_SUMMARY.md, CHECKLIST.md, FEATURES_V3.md
+- SPEED_OPTIMIZATIONS.md, BACKEND_TECHNICAL_GUIDE.md, ARCHITECTURE_V2.md
+- install.bat, run-web.bat, setup.bat
+- test_upload.py, test_v2_architecture.py, test_v3_features.py
+- check_db.py, verify_api.py, benchmark.py
+- main.py, cli.py, init_mysql.py, optimize_mysql.sql
+- web/ (dossier entier)
+
+---
+
 ## [3.0.0] - 2025-12-17 🎉
 
 ### ✨ Nouvelles Fonctionnalités

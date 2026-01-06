@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ========== ENVIRONNEMENT ==========
-DEBUG = os.getenv('FLASK_DEBUG', True)
+DEBUG = os.getenv('FLASK_DEBUG', 'true').lower() in ('true', '1', 'yes')
 ENVIRONMENT = os.getenv('FLASK_ENV', 'development')
 
 # ========== BASE DE DONNÉES ==========
