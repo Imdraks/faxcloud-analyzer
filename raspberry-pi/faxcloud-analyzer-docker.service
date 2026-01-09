@@ -1,0 +1,27 @@
+[Unit]
+Description=FaxCloud Analyzer (Docker Container)
+Documentation=https://github.com/your-repo/faxcloud-analyzer
+After=docker.service
+Requires=docker.service
+BindsTo=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/faxcloud-analyzer
+ExecStartPre=-/usr/bin/docker compose down --remove-orphans
+ExecStart=/usr/bin/docker compose up --build
+ExecStop=/usr/bin/docker compose down
+ExecReload=/usr/bin/docker compose restart
+
+Restart=always
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=faxcloud-docker
+
+[Install]
+WantedBy=multi-user.target

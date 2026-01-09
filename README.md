@@ -2,7 +2,19 @@
 
 **Analyseur intelligent et complet pour fichiers d'export FAX FaxCloud**
 
-> **Version:** 1.0.0 | **Statut:** ✅ Production-Ready | **Python:** 3.13.9 | **Dernière mise à jour:** 11 Décembre 2025
+> **Version:** 1.2.0 | **Statut:** ✅ Production-Ready | **Python:** 3.10+ | **Dernière mise à jour:** 8 Janvier 2026
+
+---
+
+## 🆕 Nouveautés v1.2.0
+
+- 🛡️ **Sécurité renforcée** : Rate limiting, utilisateur non-root dans Docker
+- 🚀 **Performance** : Build Docker multi-stage optimisé
+- 📊 **API améliorée** : Nouveau endpoint `/api/info`, health check enrichi
+- 🎨 **UI/UX** : Animations CSS, thème sombre amélioré, skeleton loading
+- 🍓 **Raspberry Pi** : Support complet ARM64, scripts d'installation
+- 📝 **Logs** : Format amélioré avec numéros de ligne
+- ⚙️ **Configuration** : Variables d'environnement (voir `.env.example`)
 
 ---
 
@@ -11,17 +23,18 @@
 1. [À quoi sert ce projet?](#à-quoi-sert-ce-projet)
 2. [Prérequis et configuration](#prérequis-et-configuration)
 3. [Installation complète](#installation-complète)
-4. [Utilisation rapide](#utilisation-rapide)
-5. [Commandes principales](#commandes-principales)
-6. [Architecture technique](#architecture-technique)
-7. [Format des données](#format-des-données)
-8. [Règles de validation](#règles-de-validation)
-9. [Statistiques et rapports](#statistiques-et-rapports)
-10. [Modules détaillés](#modules-détaillés)
-11. [Structure de base de données](#structure-de-base-de-données)
-12. [Flux de données](#flux-de-données)
-13. [Dépannage](#dépannage)
-14. [Prochaines étapes](#prochaines-étapes)
+4. [🍓 Installation Raspberry Pi](#installation-raspberry-pi)
+5. [Utilisation rapide](#utilisation-rapide)
+6. [Commandes principales](#commandes-principales)
+7. [Architecture technique](#architecture-technique)
+8. [Format des données](#format-des-données)
+9. [Règles de validation](#règles-de-validation)
+10. [Statistiques et rapports](#statistiques-et-rapports)
+11. [Modules détaillés](#modules-détaillés)
+12. [Structure de base de données](#structure-de-base-de-données)
+13. [Flux de données](#flux-de-données)
+14. [Dépannage](#dépannage)
+15. [Prochaines étapes](#prochaines-étapes)
 
 ---
 
@@ -59,21 +72,29 @@ CSV/XLSX brut → Import → Validation → Normalisation → Analyse → Rappor
 - ✅ Reporting automatisé
 
 ### Technologies utilisées
-- **Python 3.13.9** - Langage principal
+- **Python 3.12+** - Langage principal
+- **Flask** - Framework web
+- **Gunicorn** - Serveur WSGI production
 - **pandas** - Traitement données CSV/XLSX
 - **openpyxl** - Support fichiers Excel natif
 - **qrcode/pillow** - Génération codes QR
 - **SQLite** - Base de données locale
-- **JSON** - Format rapports standard
-- **logging** - Traçabilité complète
+- **Docker** - Conteneurisation (optionnel)
+
+### Plateformes supportées
+- ✅ **Windows 10/11** (développement)
+- ✅ **Linux** (production)
+- ✅ **Raspberry Pi 4/5** (ARM64) - voir [Guide Raspberry Pi](#installation-raspberry-pi)
+- ✅ **Docker** (multi-architecture)
 
 ---
 
 ## 🔧 Prérequis et configuration
 
 ### Système d'exploitation
-- **Windows 10+** (avec PowerShell 5.1+) ✅ **RECOMMANDÉ**
-- Linux/Mac (en théorie compatible)
+- **Windows 10+** (avec PowerShell 5.1+)
+- **Linux** (Debian/Ubuntu/Raspberry Pi OS)
+- **macOS** (Intel/Apple Silicon)
 
 ### Accès réseau/fichiers
 - ✅ Accès lecture/écriture au répertoire du projet
@@ -81,7 +102,7 @@ CSV/XLSX brut → Import → Validation → Normalisation → Analyse → Rappor
 - ✅ Espace disque: 500 MB minimum
 
 ### Logiciels requis
-1. **Python 3.8+** (testé avec 3.13.9)
+1. **Python 3.10+** (recommandé: 3.12)
    - Télécharger: https://www.python.org/
    - Vérifier: `python --version`
 
@@ -89,19 +110,22 @@ CSV/XLSX brut → Import → Validation → Normalisation → Analyse → Rappor
    - Inclus avec Python 3.4+
    - Vérifier: `pip --version`
 
-3. **Git** (optionnel, pour versionner)
-   - Télécharger: https://git-scm.com/
+3. **Docker** (optionnel, recommandé pour production)
+   - Télécharger: https://docs.docker.com/get-docker/
 
 ### Vérification prérequis
 
 ```bash
 # Vérifier Python
 python --version
-# Résultat attendu: Python 3.8.0+
+# Résultat attendu: Python 3.10.0+
 
 # Vérifier pip
 pip --version
 # Résultat attendu: pip 21.0+
+
+# Vérifier Docker (optionnel)
+docker --version
 ```
 
 ## 🧾 Journal d'audit (traçabilité)
@@ -118,7 +142,23 @@ Champs principaux: `ts`, `user`, `action`, `report_id`, `ip`, `user_agent`, `met
 
 ## 🚀 Installation complète
 
-### Étape 1: Cloner/télécharger le projet
+### Installation Docker (recommandée)
+
+```bash
+# Cloner le projet
+git clone https://github.com/your-repo/faxcloud-analyzer.git
+cd faxcloud-analyzer
+
+# Démarrer avec Docker Compose
+docker compose up -d
+
+# Accéder à l'interface web
+# http://localhost:8000
+```
+
+### Installation classique
+
+#### Étape 1: Cloner/télécharger le projet
 
 **Option A - Via Git:**
 ```bash
@@ -131,7 +171,7 @@ cd faxcloud-analyzer
 2. Extraire dans `C:\Users\VotreUser\Documents\Projet\`
 3. Ouvrir PowerShell dans ce dossier
 
-### Étape 2: Créer un environnement virtuel (IMPORTANT!)
+#### Étape 2: Créer un environnement virtuel (IMPORTANT!)
 
 **Pourquoi?** Isoler les dépendances du projet de votre Python système.
 
@@ -152,7 +192,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 # Puis refaire: .\venv\Scripts\Activate.ps1
 ```
 
-### Étape 3: Installer les dépendances
+#### Étape 3: Installer les dépendances
 
 ```bash
 # Mettre à jour pip
@@ -166,7 +206,7 @@ pip list
 # Vous devez voir: pandas, openpyxl, qrcode, pillow
 ```
 
-### Étape 4: Initialiser les répertoires
+#### Étape 4: Initialiser les répertoires
 
 ```bash
 # Cette commande crée les dossiers manquants
@@ -179,13 +219,80 @@ python main.py init
 # ✓ Répertoire /logs créé
 ```
 
-### Étape 5: Test de configuration
+#### Étape 5: Test de configuration
 
 ```bash
 # Afficher l'aide
 python main.py --help
 
 # Résultat attendu: Menu avec commandes
+```
+
+---
+
+## 🍓 Installation Raspberry Pi
+
+FaxCloud Analyzer est optimisé pour fonctionner sur **Raspberry Pi 4/5** (architecture ARM64).
+
+### Installation rapide
+
+```bash
+# 1. Cloner le projet
+git clone https://github.com/your-repo/faxcloud-analyzer.git
+cd faxcloud-analyzer
+
+# 2. Exécuter le script d'installation
+sudo chmod +x raspberry-pi/install.sh
+sudo ./raspberry-pi/install.sh
+```
+
+### Installation Docker sur Pi
+
+```bash
+# Installer Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Démarrer l'application
+docker compose up -d
+```
+
+### Fichiers fournis pour Raspberry Pi
+
+| Fichier | Description |
+|---------|-------------|
+| `raspberry-pi/install.sh` | Script d'installation automatique |
+| `raspberry-pi/deploy.sh` | Script de déploiement/mise à jour |
+| `raspberry-pi/backup.sh` | Script de sauvegarde des données |
+| `raspberry-pi/faxcloud-analyzer.service` | Service systemd (Python natif) |
+| `raspberry-pi/faxcloud-analyzer-docker.service` | Service systemd (Docker) |
+| `raspberry-pi/README.md` | Guide complet Raspberry Pi |
+
+### Configuration recommandée
+
+- **Matériel**: Raspberry Pi 4/5 (2GB+ RAM)
+- **OS**: Raspberry Pi OS 64-bit (Bookworm)
+- **Stockage**: Carte SD 16GB+ ou SSD USB
+- **Réseau**: Ethernet recommandé
+
+### Commandes utiles sur Pi
+
+```bash
+# Démarrer le service
+sudo systemctl start faxcloud-analyzer
+
+# Voir les logs
+sudo journalctl -u faxcloud-analyzer -f
+
+# Vérifier le statut
+sudo systemctl status faxcloud-analyzer
+
+# Accéder à l'interface
+# http://<IP_DU_PI>:8000
+```
+
+📘 **Documentation complète**: Voir [raspberry-pi/README.md](raspberry-pi/README.md)
 ```
 
 ---

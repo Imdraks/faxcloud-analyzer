@@ -341,6 +341,38 @@ def get_all_reports() -> List[Dict]:
     return [dict(row) for row in rows]
 
 
+def get_dashboard_stats() -> Dict:
+    """Retourne des KPIs globaux (dashboard) calculés en SQL."""
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT
+            COUNT(*) AS reports_count,
+            COALESCE(SUM(total_fax), 0) AS total_fax,
+            COALESCE(SUM(erreurs_totales), 0) AS total_errors,
+            COALESCE(AVG(taux_reussite), 0.0) AS avg_success_rate
+        FROM reports
+        """
+    )
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return {
+            "reports_count": 0,
+            "total_fax": 0,
+            "total_errors": 0,
+            "avg_success_rate": 0.0,
+        }
+
+    return {
+        "reports_count": int(row["reports_count"] or 0),
+        "total_fax": int(row["total_fax"] or 0),
+        "total_errors": int(row["total_errors"] or 0),
+        "avg_success_rate": float(row["avg_success_rate"] or 0.0),
+    }
+
+
 def _normalize_report_text_fields(report: Dict) -> Dict:
     for key in ("contract_id", "date_debut", "date_fin"):
         val = report.get(key)

@@ -1,0 +1,45 @@
+[Unit]
+Description=FaxCloud Analyzer Web Service
+Documentation=https://github.com/your-repo/faxcloud-analyzer
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=faxcloud
+Group=faxcloud
+WorkingDirectory=/opt/faxcloud-analyzer
+Environment="PATH=/opt/faxcloud-analyzer/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PORT=8000"
+
+# Démarrage avec Gunicorn optimisé pour Raspberry Pi
+ExecStart=/opt/faxcloud-analyzer/venv/bin/gunicorn \
+    --bind 0.0.0.0:8000 \
+    --workers 2 \
+    --threads 2 \
+    --timeout 120 \
+    --access-logfile /opt/faxcloud-analyzer/logs/access.log \
+    --error-logfile /opt/faxcloud-analyzer/logs/error.log \
+    src.wsgi:app
+
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=30
+Restart=always
+RestartSec=10
+
+# Sécurité renforcée
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/faxcloud-analyzer/data /opt/faxcloud-analyzer/database /opt/faxcloud-analyzer/logs
+
+# Limites de ressources pour Raspberry Pi
+MemoryMax=512M
+MemoryHigh=384M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

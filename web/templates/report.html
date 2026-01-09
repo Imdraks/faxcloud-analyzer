@@ -37,7 +37,10 @@
                 </a>
             </nav>
 
-            <div class="side-footer">v1.0</div>
+            <div class="side-footer">
+                <button id="themeToggle" class="btn btn-small btn-ghost" type="button" aria-pressed="false">Mode sombre</button>
+                <div class="side-footer-meta">v1.2.0</div>
+            </div>
         </aside>
 
         <div class="content">
@@ -50,9 +53,9 @@
                     {% endif %}
                 </div>
                 <div class="topbar-actions">
-                    <a class="btn" href="/api/report/{{ report.id }}/export.csv">Télécharger CSV</a>
-                    <a class="btn" href="/api/report/{{ report.id }}/export.json">Télécharger JSON</a>
-                    <button id="deleteReportBtn" class="btn" type="button">Supprimer</button>
+                    <a class="btn" href="/api/report/{{ report.id }}/export.csv" download>Télécharger CSV</a>
+                    <a class="btn" href="/api/report/{{ report.id }}/export.json" download>Télécharger JSON</a>
+                    <button id="deleteReportBtn" class="btn btn-danger" type="button">Supprimer</button>
                 </div>
             </header>
 
@@ -183,5 +186,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/report.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>
 </html>

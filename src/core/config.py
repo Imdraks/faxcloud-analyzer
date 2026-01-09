@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 import sys
 
+# Application version
+__version__ = "1.2.0"
 
-DEBUG = False
+DEBUG = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
 
 
 @dataclass(frozen=True)
@@ -22,7 +25,9 @@ class Settings:
     reports_qr_dir: Path
     logs_dir: Path
     database_path: Path
-    default_base_url: str = "https://faxcloud-analyzer.local/reports"
+    default_base_url: str = os.environ.get("BASE_URL", "https://faxcloud-analyzer.local/reports")
+    max_upload_size_mb: int = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "100"))
+    log_level: str = os.environ.get("LOG_LEVEL", "INFO")
 
 
 def _build_settings() -> Settings:
@@ -73,7 +78,11 @@ def ensure_directories() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
-def configure_logging(level: int = logging.INFO) -> None:
+def configure_logging(level: int | None = None) -> None:
+    if level is None:
+        level_str = settings.log_level.upper()
+        level = getattr(logging, level_str, logging.INFO)
+    
     ensure_directories()
     log_file = settings.logs_dir / "analyzer.log"
     root_logger = logging.getLogger()
@@ -81,8 +90,14 @@ def configure_logging(level: int = logging.INFO) -> None:
         root_logger.setLevel(level)
         return
 
+    # Improved log format with more details
+    log_format = "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s"
+    
     logging.basicConfig(
         level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+        format=log_format,
+        handlers=[
+            logging.FileHandler(log_file, encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
     )

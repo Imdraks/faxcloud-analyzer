@@ -5,15 +5,30 @@ import csv
 import io
 import json
 import logging
+import os
 import threading
 import time
 import uuid
+from collections import defaultdict
+from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
 import hashlib
 
 from werkzeug.utils import secure_filename
 
 from flask import Flask, Response, abort, jsonify, render_template, request, send_file
+
+# ─────────────────────────────────────────────────────────────
+# Application metadata
+# ─────────────────────────────────────────────────────────────
+__version__ = "1.2.0"
+__app_name__ = "FaxCloud Analyzer"
+__description__ = "Analyseur intelligent pour exports FaxCloud"
+
+# Rate limiting configuration (requests per minute per IP)
+RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", 120))
+RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", 60))  # seconds
 
 from src.core import (
     analyze_data,
@@ -27,6 +42,7 @@ from src.core import (
 from src.core.config import configure_logging, ensure_directories
 from src.core.db import (
     delete_report,
+    get_dashboard_stats,
     get_report_by_id,
     get_report_entries,
     get_report_summary_by_id,
@@ -115,6 +131,58 @@ def create_app() -> Flask:
 
     app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
     app.config["UPLOAD_FOLDER"] = str(settings.imports_dir)
+    app.config["JSON_AS_ASCII"] = False
+    app.config["JSON_SORT_KEYS"] = False
+
+    # ─────────────────────────────────────────────────────────────
+    # Simple in-memory rate limiter
+    # ─────────────────────────────────────────────────────────────
+    _rate_limit_store: dict[str, list[float]] = defaultdict(list)
+    _rate_limit_lock = threading.Lock()
+
+    def _check_rate_limit(ip: str) -> bool:
+        """Returns True if request is allowed, False if rate limited."""
+        now = time.time()
+        window_start = now - RATE_LIMIT_WINDOW
+        
+        with _rate_limit_lock:
+            # Clean old entries
+            _rate_limit_store[ip] = [t for t in _rate_limit_store[ip] if t > window_start]
+            
+            if len(_rate_limit_store[ip]) >= RATE_LIMIT_REQUESTS:
+                return False
+            
+            _rate_limit_store[ip].append(now)
+            return True
+
+    @app.before_request
+    def rate_limit_check():
+        """Apply rate limiting to API endpoints."""
+        if request.path.startswith("/api/") and not request.path.startswith("/api/health"):
+            ip = request.remote_addr or "unknown"
+            if not _check_rate_limit(ip):
+                logger.warning("Rate limit exceeded for IP: %s", ip)
+                return {"error": "Trop de requêtes. Réessayez dans quelques secondes."}, 429
+
+    # ─────────────────────────────────────────────────────────────
+    # Error handlers
+    # ─────────────────────────────────────────────────────────────
+    @app.errorhandler(404)
+    def not_found_error(error):
+        if request.path.startswith("/api/"):
+            return {"error": "Ressource non trouvée"}, 404
+        return render_template("404.html"), 404
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        logger.exception("Internal server error: %s", error)
+        if request.path.startswith("/api/"):
+            return {"error": "Erreur interne du serveur"}, 500
+        return render_template("500.html"), 500
+
+    @app.errorhandler(413)
+    def file_too_large(error):
+        return {"error": "Fichier trop volumineux (max 100MB)"}, 413
 
     # In-memory upload progress (best-effort) for "real-time" UX.
     # Note: in multi-process deployments, each process has its own memory.
@@ -148,14 +216,55 @@ def create_app() -> Flask:
     def health() -> tuple[dict, int]:
         return {"status": "ok"}, 200
 
+    @app.route("/api/health")
+    def api_health() -> tuple[dict, int]:
+        """Health check endpoint pour Docker/Kubernetes/monitoring."""
+        import platform
+        try:
+            db_ok = True
+            init_database()
+        except Exception:
+            db_ok = False
+        
+        return {
+            "status": "healthy" if db_ok else "degraded",
+            "version": __version__,
+            "app": __app_name__,
+            "database": "ok" if db_ok else "error",
+            "platform": platform.machine(),
+            "python": platform.python_version(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }, 200 if db_ok else 503
+
+    @app.route("/api/info")
+    def api_info() -> tuple[dict, int]:
+        """Information about the API."""
+        return {
+            "name": __app_name__,
+            "version": __version__,
+            "description": __description__,
+            "endpoints": {
+                "health": "/api/health",
+                "reports": "/api/reports",
+                "report": "/api/report/<id>",
+                "entries": "/api/report/<id>/entries",
+                "upload": "/api/upload",
+                "upload_async": "/api/upload_async",
+            },
+        }, 200
+
     # ─────────────────────────────────────────────────────────────
     # Pages (SSR)
     # ─────────────────────────────────────────────────────────────
 
     @app.route("/", methods=["GET"])
     def index():
-        reports = get_all_reports() or []
-        return render_template("index.html", reports_count=len(reports))
+        dashboard = get_dashboard_stats()
+        return render_template(
+            "index.html",
+            reports_count=dashboard.get("reports_count", 0),
+            dashboard=dashboard,
+        )
 
     @app.route("/reports", methods=["GET"])
     def reports_page():
