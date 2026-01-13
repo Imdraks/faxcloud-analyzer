@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapports - FaxCloud Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-title">FaxCloud Analyzer</div>
+                <div class="brand-subtitle">Interface interne</div>
+            </div>
+
+            <nav class="side-nav">
+                <a class="side-link icon-only" href="/" aria-label="Accueil" title="Accueil">
+                    <span class="side-link-left">
+                        <svg class="side-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 11.5L12 4l9 7.5" />
+                            <path d="M5 10.5V20h14v-9.5" />
+                        </svg>
+                        <span class="sr-only">Accueil</span>
+                    </span>
+                </a>
+                <a class="side-link icon-only active" href="/reports" aria-label="Rapports" title="Rapports">
+                    <span class="side-link-left">
+                        <svg class="side-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M7 3h7l3 3v15H7z" />
+                            <path d="M14 3v4h4" />
+                            <path d="M9 12h6" />
+                            <path d="M9 16h6" />
+                        </svg>
+                        <span class="sr-only">Rapports</span>
+                    </span>
+                </a>
+            </nav>
+
+            <div class="side-footer">
+                <button id="themeToggle" class="btn btn-small btn-ghost" type="button" aria-pressed="false">Mode sombre</button>
+                <div class="side-footer-meta">v1.2.0</div>
+            </div>
+        </aside>
+
+        <div class="content">
+            <header class="topbar">
+                <div>
+                    <h1 class="page-title">Rapports</h1>
+                    <p class="page-subtitle">Liste des rapports générés.</p>
+                </div>
+            </header>
+
+            <main class="main">
+                <section class="section">
+                    <h2>Liste</h2>
+
+                    <div id="reportsList" class="reports-list">
+                        {% if reports %}
+                            {% for report in reports %}
+                                <div class="report-item">
+                                    <div class="report-item-header">
+                                        <h3 class="report-title">{{ report.contract_id or 'Sans contrat' }}</h3>
+                                        <a href="/report/{{ report.id }}" class="btn">Ouvrir</a>
+                                    </div>
+
+                                    <div class="report-meta">
+                                        <div><span class="meta-label">Période</span> {{ report.date_debut }} → {{ report.date_fin }}</div>
+                                        {% if report.source_filename %}
+                                            <div class="text-muted"><span class="meta-label">Fichier</span> {{ report.source_filename }}</div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="report-kpis">
+                                        <div><span class="meta-label">FAX</span> {{ report.total_fax }}</div>
+                                        <div><span class="meta-label">Erreurs</span> {{ report.erreurs_totales }}</div>
+                                        <div><span class="meta-label">Taux</span> {{ report.taux_reussite }}%</div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted">Aucun rapport en base.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

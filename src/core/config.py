@@ -1,246 +1,103 @@
-"""
-Configuration centralisée du projet FaxCloud Analyzer
-"""
+from __future__ import annotations
 
-import os
 import logging
+import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any
-from datetime import datetime
-from dotenv import load_dotenv
+import sys
 
-# Charger les variables d'environnement du fichier .env
-load_dotenv(Path(__file__).parent.parent.parent / '.env')
+# Application version
+__version__ = "1.2.0"
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CHEMINS ET RÉPERTOIRES
-# ═══════════════════════════════════════════════════════════════════════════
+DEBUG = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-SRC_DIR = PROJECT_ROOT / "src"
-DATA_DIR = PROJECT_ROOT / "data"
-LOGS_DIR = PROJECT_ROOT / "logs"
-DOCS_DIR = PROJECT_ROOT / "docs"
 
-# Sous-répertoires DATA
-IMPORTS_DIR = DATA_DIR / "imports"
-REPORTS_DIR = DATA_DIR / "reports"
-REPORTS_QR_DIR = DATA_DIR / "reports_qr"
-DATABASE_DIR = DATA_DIR / "database"
+@dataclass(frozen=True)
+class Settings:
+    """
+    Centralized configuration for filesystem locations and defaults.
+    """
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONFIGURATION BASE DE DONNÉES
-# ═══════════════════════════════════════════════════════════════════════════
+    base_dir: Path
+    data_dir: Path
+    imports_dir: Path
+    reports_dir: Path
+    reports_qr_dir: Path
+    logs_dir: Path
+    database_path: Path
+    default_base_url: str = os.environ.get("BASE_URL", "https://faxcloud-analyzer.local/reports")
+    max_upload_size_mb: int = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "100"))
+    log_level: str = os.environ.get("LOG_LEVEL", "INFO")
 
-# Type de BDD: 'mysql' ou 'sqlite'
-DATABASE_TYPE = os.getenv('DATABASE_TYPE', 'mysql')
 
-if DATABASE_TYPE == 'mysql':
-    # Configuration MySQL (WampServer/phpMyAdmin)
-    DATABASE_CONFIG = {
-        "type": "mysql",
-        "host": os.getenv('DB_HOST', 'localhost'),
-        "port": int(os.getenv('DB_PORT', 3306)),
-        "user": os.getenv('DB_USER', 'root'),
-        "password": os.getenv('DB_PASSWORD', ''),
-        "database": os.getenv('DB_NAME', 'faxcloud_analyzer'),
-        "charset": 'utf8mb4',
-        "autocommit": True
-    }
-else:
-    # Configuration SQLite (fallback)
-    DATABASE_PATH = DATABASE_DIR / "faxcloud.db"
-    DATABASE_CONFIG = {
-        "type": "sqlite",
-        "path": str(DATABASE_PATH),
-        "timeout": 5.0,
-        "check_same_thread": False
-    }
+def _build_settings() -> Settings:
+    if getattr(sys, "frozen", False):
+        # Running as a packaged executable (PyInstaller): keep data next to the EXE.
+        project_root = Path(sys.executable).resolve().parent
+    else:
+        project_root = Path(__file__).resolve().parents[2]
+    data_dir = project_root / "data"
+    return Settings(
+        base_dir=project_root,
+        data_dir=data_dir,
+        imports_dir=data_dir / "imports",
+        reports_dir=data_dir / "reports",
+        reports_qr_dir=data_dir / "reports_qr",
+        logs_dir=project_root / "logs",
+        database_path=project_root / "database" / "faxcloud.db",
+    )
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONFIGURATION LOGGING
-# ═══════════════════════════════════════════════════════════════════════════
 
-LOG_FILE = LOGS_DIR / "faxcloud_analyzer.log"
-LOG_LEVEL = logging.INFO
+settings = _build_settings()
 
-LOG_CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "standard": {
-            "format": "[%(asctime)s] %(name)s - %(levelname)s - %(message)s"
-        },
-        "detailed": {
-            "format": "[%(asctime)s] %(name)s:%(lineno)d - %(levelname)s - %(message)s"
-        }
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "level": "INFO",
-            "formatter": "standard",
-            "stream": "ext://sys.stdout"
-        },
-        "file": {
-            "class": "logging.FileHandler",
-            "level": "DEBUG",
-            "formatter": "detailed",
-            "filename": str(LOG_FILE)
-        }
-    },
-    "root": {
-        "level": "DEBUG",
-        "handlers": ["console", "file"]
-    }
-}
 
-# ═══════════════════════════════════════════════════════════════════════════
-# RÈGLES D'ANALYSE
-# ═══════════════════════════════════════════════════════════════════════════
+def set_debug_mode(enabled: bool) -> None:
+    """
+    Enable or disable debug logging globally.
+    """
 
-# Colonnes attendues du fichier CSV/XLSX (par index)
-EXPECTED_COLUMNS = {
-    'fax_id': 0,              # Colonne A
-    'utilisateur': 1,         # Colonne B
-    'mode': 3,                # Colonne D
-    'date_heure': 5,          # Colonne F
-    'numero': 7,              # Colonne H
-    'pages': 10               # Colonne K
-}
+    global DEBUG
+    DEBUG = enabled
+    level = logging.DEBUG if enabled else logging.INFO
+    configure_logging(level)
 
-# Types de fax valides
-VALID_FAX_MODES = {
-    'SF': 'Envoyé',
-    'RF': 'Reçu'
-}
 
-# Règles de validation des numéros
-NUMBER_VALIDATION_RULES = {
-    'min_length': 11,
-    'max_length': 11,
-    'required_prefix': '33',
-    'allow_empty': False,
-    'require_numeric': True
-}
+def ensure_directories() -> None:
+    """
+    Create required directories if they are missing.
+    """
 
-# Types d'erreurs
-ERROR_TYPES = {
-    'ERR_001': "Numéro vide",
-    'ERR_002': "Format de numéro illisible (caractères invalides)",
-    'ERR_003': "Nombre de chiffres incorrect (doit être 11)",
-    'ERR_004': "Indicatif incorrect (doit commencer par 33)",
-    'ERR_005': "Nombre de pages invalide (doit être >= 1)",
-    'ERR_006': "Mode de fax invalide (doit être SF ou RF)",
-    'ERR_007': "Date/heure manquante ou invalide",
-    'ERR_008': "Utilisateur non renseigné",
-    'ERR_099': "Erreur inconnue"
-}
+    for path in [
+        settings.data_dir,
+        settings.imports_dir,
+        settings.reports_dir,
+        settings.reports_qr_dir,
+        settings.logs_dir,
+        settings.database_path.parent,
+    ]:
+        path.mkdir(parents=True, exist_ok=True)
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONFIGURATION WEB
-# ═══════════════════════════════════════════════════════════════════════════
 
-FLASK_CONFIG = {
-    "DEBUG": False,
-    "HOST": "127.0.0.1",
-    "PORT": 5000,
-    "TEMPLATES_AUTO_RELOAD": True,
-    "JSON_SORT_KEYS": False
-}
-
-# URL de base pour les rapports (via QR code)
-BASE_REPORT_URL = "http://localhost:5000/report"
-
-# ═══════════════════════════════════════════════════════════════════════════
-# CONFIGURATION QR CODE
-# ═══════════════════════════════════════════════════════════════════════════
-
-QR_CODE_CONFIG = {
-    "version": 1,
-    "error_correction": "M",
-    "box_size": 10,
-    "border": 2
-}
-
-# ═══════════════════════════════════════════════════════════════════════════
-# CLASSE DE CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════
-
-class Config:
-    """Configuration centralisée et méthodes utilitaires"""
+def configure_logging(level: int | None = None) -> None:
+    if level is None:
+        level_str = settings.log_level.upper()
+        level = getattr(logging, level_str, logging.INFO)
     
-    # Chemins
-    PROJECT_ROOT = PROJECT_ROOT
-    SRC_DIR = SRC_DIR
-    DATA_DIR = DATA_DIR
-    LOGS_DIR = LOGS_DIR
-    IMPORTS_DIR = IMPORTS_DIR
-    REPORTS_DIR = REPORTS_DIR
-    REPORTS_QR_DIR = REPORTS_QR_DIR
-    DATABASE_DIR = DATABASE_DIR
+    ensure_directories()
+    log_file = settings.logs_dir / "analyzer.log"
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        root_logger.setLevel(level)
+        return
+
+    # Improved log format with more details
+    log_format = "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s"
     
-    # Configs
-    DATABASE_CONFIG = DATABASE_CONFIG
-    LOG_CONFIG = LOG_CONFIG
-    FLASK_CONFIG = FLASK_CONFIG
-    QR_CODE_CONFIG = QR_CODE_CONFIG
-    EXPECTED_COLUMNS = EXPECTED_COLUMNS
-    VALID_FAX_MODES = VALID_FAX_MODES
-    NUMBER_VALIDATION_RULES = NUMBER_VALIDATION_RULES
-    ERROR_TYPES = ERROR_TYPES
-    BASE_REPORT_URL = BASE_REPORT_URL
-    USE_NGROK = os.getenv('USE_NGROK', 'false').lower() == 'true'  # TEST LOCAL: false
-    
-    @staticmethod
-    def ensure_directories() -> None:
-        """Crée tous les répertoires nécessaires s'ils n'existent pas"""
-        dirs_to_create = [
-            LOGS_DIR,
-            IMPORTS_DIR,
-            REPORTS_DIR,
-            REPORTS_QR_DIR,
-            DATABASE_DIR
-        ]
-        
-        for dir_path in dirs_to_create:
-            dir_path.mkdir(parents=True, exist_ok=True)
-    
-    @staticmethod
-    def get_logger(name: str) -> logging.Logger:
-        """Retourne un logger configuré"""
-        return logging.getLogger(name)
-    
-    @staticmethod
-    def setup_logging() -> None:
-        """Configure le système de logging"""
-        import logging.config
-        
-        Config.ensure_directories()
-        
-        # Créer le fichier log s'il n'existe pas
-        LOG_FILE.touch(exist_ok=True)
-        
-        logging.config.dictConfig(LOG_CONFIG)
-    
-    @staticmethod
-    def to_dict() -> Dict[str, Any]:
-        """Retourne la configuration sous forme de dictionnaire"""
-        return {
-            "database": DATABASE_CONFIG,
-            "flask": FLASK_CONFIG,
-            "qr_code": QR_CODE_CONFIG,
-            "validation_rules": {
-                "fax_modes": VALID_FAX_MODES,
-                "number_rules": NUMBER_VALIDATION_RULES,
-                "error_types": ERROR_TYPES
-            },
-            "paths": {
-                "project_root": str(PROJECT_ROOT),
-                "data": str(DATA_DIR),
-                "reports": str(REPORTS_DIR),
-                "qr_codes": str(REPORTS_QR_DIR),
-                "database": str(DATABASE_DIR),
-                "logs": str(LOGS_DIR)
-            }
-        }
+    logging.basicConfig(
+        level=level,
+        format=log_format,
+        handlers=[
+            logging.FileHandler(log_file, encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
+    )

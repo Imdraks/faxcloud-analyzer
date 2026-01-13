@@ -1,42 +1,18 @@
-# FaxCloud Analyzer - Dépendances Python
-# Python >= 3.8
-# Installation: pip install -r requirements.txt
+# FaxCloud Analyzer - Dependencies
+# Python 3.10+ required
 
-# ====================================
-# Traitement de données (CSV/XLSX)
-# ====================================
-pandas>=2.2.0
-openpyxl>=3.1.0
-chardet>=5.0.0
+# Web Framework
+Flask>=3.0.0,<4.0.0
+Werkzeug>=3.0.0,<4.0.0
 
-# ====================================
-# Base de données
-# ====================================
-mysql-connector-python>=8.0.0
-python-dotenv>=1.0.0
+# Data Processing
+pandas>=2.2.0,<3.0.0
+openpyxl>=3.1.0,<4.0.0
 
-# ====================================
-# Génération QR codes, images et PDF
-# ====================================
-qrcode>=7.4.0
-pillow>=10.0.0
-reportlab>=4.0.0
+# QR Code Generation
+qrcode>=7.4.0,<8.0.0
+pillow>=10.4.0,<12.0.0
 
-# ====================================
-# Interface web et API
-# ====================================
-flask>=3.0.0
-flask-cors>=4.0.0
-flask-compress>=1.14.0
-requests>=2.31.0
-
-# ====================================
-# Tunnels publics (accès distant)
-# ====================================
-pyngrok>=5.0.0
-
-# ====================================
-# Utilitaires
-# ====================================
-python-dateutil>=2.8.2
-tabulate>=0.9.0
+# Utilities
+requests>=2.31.0,<3.0.0
+python-dateutil>=2.8.0,<3.0.0
