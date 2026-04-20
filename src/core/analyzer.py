@@ -8,6 +8,13 @@ from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Import optionnel du moteur Asterisk (classification SDA/Téléphone)
+try:
+    from .asterisk import get_engine as _get_asterisk_engine
+    _HAS_ASTERISK = True
+except ImportError:
+    _HAS_ASTERISK = False
+
 
 def normalize_number(numero: str) -> str:
     digits = re.sub(r"\D", "", str(numero or ""))
@@ -115,6 +122,20 @@ def analyze_data(rows: List[Dict], contract_id: str | None, date_debut: str | No
         "erreurs_par_type": erreur_counts,
     }
 
+    # Classification SDA / Téléphone via le moteur Asterisk
+    asterisk_stats = {}
+    if _HAS_ASTERISK:
+        try:
+            engine = _get_asterisk_engine()
+            entries = engine.classify_entries(entries)
+            asterisk_stats = engine.get_stats(entries)
+            logger.info("Classification Asterisk: %d SDA, %d téléphone, %d mobile",
+                        asterisk_stats.get("sda", 0),
+                        asterisk_stats.get("telephone", 0),
+                        asterisk_stats.get("mobile", 0))
+        except Exception as e:
+            logger.warning("Classification Asterisk échouée: %s", e)
+
     return {
         "report_id": str(uuid.uuid4()),
         "timestamp": datetime.utcnow().isoformat(),
@@ -122,5 +143,6 @@ def analyze_data(rows: List[Dict], contract_id: str | None, date_debut: str | No
         "date_debut": date_debut,
         "date_fin": date_fin,
         "statistics": statistics,
+        "asterisk_stats": asterisk_stats,
         "entries": entries,
     }

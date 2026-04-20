@@ -48,6 +48,21 @@ from src.core.db import (
     get_report_summary_by_id,
     insert_audit_event,
 )
+from src.core.asterisk import (
+    init_asterisk_tables,
+    get_sda_ranges,
+    add_sda_range,
+    update_sda_range,
+    delete_sda_range,
+    get_ami_config,
+    save_ami_config,
+    get_engine as get_asterisk_engine,
+    reload_engine as reload_asterisk_engine,
+    NUMBER_TYPE_LABELS,
+    get_all_cached_tones,
+    clear_tone_cache,
+    get_dialplan_snippet,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +131,7 @@ def _ensure_report_derived_fields(report_data: dict) -> dict:
 def create_app() -> Flask:
     ensure_directories()
     init_database()
+    init_asterisk_tables()
 
     configure_logging()
 
@@ -250,6 +266,15 @@ def create_app() -> Flask:
                 "entries": "/api/report/<id>/entries",
                 "upload": "/api/upload",
                 "upload_async": "/api/upload_async",
+                "asterisk_config": "/api/asterisk/config",
+                "asterisk_sda": "/api/asterisk/sda",
+                "asterisk_classify": "/api/asterisk/classify",
+                "asterisk_types": "/api/asterisk/types",
+                "asterisk_stats": "/api/asterisk/stats/<id>",
+                "asterisk_detect": "/api/asterisk/detect",
+                "asterisk_detect_single": "/api/asterisk/detect/<numero>",
+                "asterisk_cache": "/api/asterisk/cache",
+                "asterisk_dialplan": "/api/asterisk/dialplan",
             },
         }, 200
 
@@ -459,6 +484,8 @@ def create_app() -> Flask:
                 "type",
                 "numero_original",
                 "numero_normalise",
+                "numero_type",
+                "numero_type_label",
                 "valide",
                 "pages",
                 "datetime",
@@ -494,6 +521,8 @@ def create_app() -> Flask:
                         r.get("type"),
                         r.get("numero_original"),
                         r.get("numero_normalise"),
+                        r.get("numero_type", ""),
+                        r.get("numero_type_label", ""),
                         r.get("valide"),
                         r.get("pages"),
                         r.get("datetime"),
@@ -606,6 +635,233 @@ def create_app() -> Flask:
             "Content-Type": "application/json; charset=utf-8",
         }
         return Response(generate(), headers=headers)
+
+    # ─────────────────────────────────────────────────────────────
+    # API Asterisk / SDA
+    # ─────────────────────────────────────────────────────────────
+
+    @app.route("/api/asterisk/config", methods=["GET"])
+    def api_asterisk_config():
+        """Retourne la configuration AMI Asterisk."""
+        config = get_ami_config()
+        # Ne pas exposer le secret en clair
+        if config.get("ami_secret"):
+            config["ami_secret"] = "********"
+        return jsonify(config)
+
+    @app.route("/api/asterisk/config", methods=["PUT"])
+    def api_asterisk_config_update():
+        """Met à jour la configuration AMI Asterisk."""
+        data = request.get_json(silent=True) or {}
+        host = data.get("ami_host", "127.0.0.1")
+        port = int(data.get("ami_port", 5038))
+        username = data.get("ami_username", "admin")
+        secret = data.get("ami_secret", "")
+        enabled = bool(data.get("ami_enabled", False))
+
+        # Si le secret est masqué, garder l'ancien
+        if secret == "********":
+            old_config = get_ami_config()
+            secret = old_config.get("ami_secret", "")
+
+        # Nouveaux paramètres de détection
+        context = data.get("ami_context", "faxcloud-detect")
+        caller_id = data.get("ami_caller_id", "FaxCloudTest")
+        call_timeout = int(data.get("ami_call_timeout", 15))
+        detect_timeout = int(data.get("ami_detect_timeout", 10))
+        trunk = data.get("ami_trunk", "")
+        cache_ttl_hours = int(data.get("cache_ttl_hours", 168))
+
+        save_ami_config(host, port, username, secret, enabled,
+                        context, caller_id, call_timeout, detect_timeout,
+                        trunk, cache_ttl_hours)
+        reload_asterisk_engine()
+
+        insert_audit_event(
+            action="asterisk_config_update",
+            user=_current_user(),
+            ip=request.remote_addr,
+            user_agent=request.headers.get("User-Agent"),
+        )
+        return {"success": True, "message": "Configuration AMI mise à jour"}, 200
+
+    @app.route("/api/asterisk/sda", methods=["GET"])
+    def api_sda_ranges():
+        """Liste toutes les plages SDA configurées."""
+        ranges = get_sda_ranges()
+        return jsonify({"ranges": ranges, "count": len(ranges)})
+
+    @app.route("/api/asterisk/sda", methods=["POST"])
+    def api_sda_range_add():
+        """Ajoute une plage SDA."""
+        data = request.get_json(silent=True) or {}
+        label = data.get("label", "").strip()
+        prefix = data.get("prefix", "").strip()
+
+        if not label or not prefix:
+            return {"error": "label et prefix sont requis"}, 400
+
+        result = add_sda_range(
+            label=label,
+            prefix=prefix,
+            range_start=data.get("range_start", ""),
+            range_end=data.get("range_end", ""),
+            site=data.get("site", ""),
+            description=data.get("description", ""),
+        )
+        reload_asterisk_engine()
+
+        insert_audit_event(
+            action="sda_range_add",
+            user=_current_user(),
+            ip=request.remote_addr,
+            user_agent=request.headers.get("User-Agent"),
+            meta={"label": label, "prefix": prefix},
+        )
+        return jsonify({"success": True, "range": result}), 201
+
+    @app.route("/api/asterisk/sda/<int:range_id>", methods=["PUT"])
+    def api_sda_range_update(range_id: int):
+        """Met à jour une plage SDA."""
+        data = request.get_json(silent=True) or {}
+        updated = update_sda_range(range_id, **data)
+        if updated:
+            reload_asterisk_engine()
+        return {"success": updated}, 200 if updated else 404
+
+    @app.route("/api/asterisk/sda/<int:range_id>", methods=["DELETE"])
+    def api_sda_range_delete(range_id: int):
+        """Supprime une plage SDA."""
+        deleted = delete_sda_range(range_id)
+        if deleted:
+            reload_asterisk_engine()
+            insert_audit_event(
+                action="sda_range_delete",
+                user=_current_user(),
+                ip=request.remote_addr,
+                user_agent=request.headers.get("User-Agent"),
+                meta={"range_id": range_id},
+            )
+        return {"success": deleted}, 200 if deleted else 404
+
+    @app.route("/api/asterisk/classify", methods=["POST"])
+    def api_asterisk_classify():
+        """Classifie un ou plusieurs numéros."""
+        data = request.get_json(silent=True) or {}
+        numeros = data.get("numeros", [])
+        if isinstance(numeros, str):
+            numeros = [numeros]
+        if not numeros:
+            numero = data.get("numero", "")
+            if numero:
+                numeros = [numero]
+
+        if not numeros:
+            return {"error": "Fournir 'numero' ou 'numeros'"}, 400
+
+        engine = get_asterisk_engine()
+        from src.core.analyzer import normalize_number
+        results = []
+        for n in numeros:
+            normalise = normalize_number(n)
+            num_type, num_label = engine.classify_number(normalise)
+            results.append({
+                "numero_original": n,
+                "numero_normalise": normalise,
+                "type": num_type,
+                "label": num_label,
+            })
+        return jsonify({"results": results})
+
+    @app.route("/api/asterisk/types", methods=["GET"])
+    def api_asterisk_types():
+        """Retourne les types de numéros disponibles."""
+        return jsonify(NUMBER_TYPE_LABELS)
+
+    @app.route("/api/asterisk/stats/<report_id>", methods=["GET"])
+    def api_asterisk_report_stats(report_id: str):
+        """Calcule les stats SDA/Téléphone pour un rapport existant."""
+        report = get_report_by_id(report_id)
+        if not report:
+            return {"error": "Rapport non trouvé"}, 404
+
+        entries = report.get("fax_entries", report.get("entries", []))
+        engine = get_asterisk_engine()
+        entries = engine.classify_entries(entries)
+        stats = engine.get_stats(entries)
+        return jsonify({"report_id": report_id, "asterisk_stats": stats})
+
+    # ──────────────────────────────────────────
+    # API Détection de tonalité fax
+    # ──────────────────────────────────────────
+
+    @app.route("/api/asterisk/detect", methods=["POST"])
+    def api_asterisk_detect():
+        """
+        Appelle un ou plusieurs numéros pour détecter la tonalité fax.
+        Body: { "numero": "0493095562" } ou { "numeros": ["049...", "049..."] }
+        Param: ?force=1 pour ignorer le cache
+        """
+        data = request.get_json(silent=True) or {}
+        force = request.args.get("force", "0") == "1"
+
+        numeros = data.get("numeros", [])
+        if isinstance(numeros, str):
+            numeros = [numeros]
+        if not numeros:
+            numero = data.get("numero", "")
+            if numero:
+                numeros = [numero]
+        if not numeros:
+            return {"error": "Fournir 'numero' ou 'numeros'"}, 400
+
+        engine = get_asterisk_engine()
+        from src.core.analyzer import normalize_number
+
+        if len(numeros) == 1:
+            normalise = normalize_number(numeros[0])
+            result = engine.detect_tone(normalise, force=force)
+            result["numero_original"] = numeros[0]
+            return jsonify(result)
+
+        # Batch : limiter à 50 numéros par requête
+        if len(numeros) > 50:
+            return {"error": "Maximum 50 numéros par requête"}, 400
+
+        normalises = [normalize_number(n) for n in numeros]
+        results = engine.detect_tones_batch(normalises, force=force)
+        for i, r in enumerate(results):
+            r["numero_original"] = numeros[i] if i < len(numeros) else ""
+        return jsonify({"results": results, "count": len(results)})
+
+    @app.route("/api/asterisk/detect/<numero>", methods=["GET"])
+    def api_asterisk_detect_single(numero: str):
+        """Détecte la tonalité fax pour un numéro donné (GET)."""
+        force = request.args.get("force", "0") == "1"
+        engine = get_asterisk_engine()
+        from src.core.analyzer import normalize_number
+        normalise = normalize_number(numero)
+        result = engine.detect_tone(normalise, force=force)
+        result["numero_original"] = numero
+        return jsonify(result)
+
+    @app.route("/api/asterisk/cache", methods=["GET"])
+    def api_asterisk_cache():
+        """Liste tous les résultats de détection en cache."""
+        results = get_all_cached_tones()
+        return jsonify({"cache": results, "count": len(results)})
+
+    @app.route("/api/asterisk/cache", methods=["DELETE"])
+    def api_asterisk_cache_clear():
+        """Vide le cache de détection (un numéro ou tout)."""
+        numero = request.args.get("numero")
+        count = clear_tone_cache(numero)
+        return {"success": True, "cleared": count}
+
+    @app.route("/api/asterisk/dialplan", methods=["GET"])
+    def api_asterisk_dialplan():
+        """Retourne le snippet de dialplan Asterisk à configurer."""
+        return Response(get_dialplan_snippet(), mimetype="text/plain")
 
     @app.route("/api/report/<report_id>", methods=["DELETE"])
     def api_report_delete(report_id: str):

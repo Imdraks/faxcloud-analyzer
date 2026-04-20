@@ -302,8 +302,9 @@ def insert_report_to_db(
             """
             INSERT OR REPLACE INTO fax_entries (
                 id, report_id, fax_id, utilisateur, type,
-                numero_original, numero_normalise, valide, pages, datetime, datetime_ts, erreurs
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                numero_original, numero_normalise, valide, pages, datetime, datetime_ts, erreurs,
+                numero_type, numero_type_label
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 entry.get("id"),
@@ -318,6 +319,8 @@ def insert_report_to_db(
                 entry.get("datetime"),
                 dt_ts,
                 json.dumps(entry.get("erreurs", [])),
+                entry.get("numero_type", "unknown"),
+                entry.get("numero_type_label", ""),
             ),
         )
 
