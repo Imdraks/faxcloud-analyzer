@@ -1,27 +1,64 @@
-# Docker Compose - Compatible Raspberry Pi (ARM64) et x86_64
-# Fichier optimisé pour déploiement sur Raspberry Pi 4/5
+# Docker Compose - FaxCloud Analyzer + Asterisk
+# Services : backend + fontend + asterisk
 
 services:
-  faxcloud-analyzer:
+  # ============================================================
+  # ASTERISK - Serveur téléphonie pour détection tonalité fax
+  # ============================================================
+  asterisk:
+    image: andrius/asterisk:latest
+    container_name: asterisk
+    restart: unless-stopped
+    ports:
+      - "5038:5038"          # AMI (Asterisk Manager Interface)
+      - "5060:5060/udp"      # SIP
+      - "5060:5060/tcp"      # SIP
+      - "10000-10020:10000-10020/udp"  # RTP (flux audio)
+    volumes:
+      - ./asterisk/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./asterisk/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+    environment:
+      - TZ=Europe/Paris
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================
+  # BACKEND - API Flask + logique applicative
+  # ============================================================
+  backend:
     build: .
     image: faxcloud-analyzer:latest
-    container_name: faxcloud-analyzer
+    container_name: backend
     restart: unless-stopped
+    depends_on:
+      asterisk:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
       - PORT=8000
       - TZ=Europe/Paris
       - PYTHONUNBUFFERED=1
+      - ASTERISK_HOST=asterisk
+      - ASTERISK_PORT=5038
     volumes:
       - ./data:/app/data
       - ./database:/app/database
       - ./logs:/app/logs
-    # Optimisation mémoire pour Raspberry Pi
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1G
         reservations:
           memory: 256M
     healthcheck:
@@ -30,6 +67,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================
+  # FONTEND - Reverse proxy web
+  # ============================================================
+  fontend:
+    image: nginx:alpine
+    container_name: fontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/nginx.conf:ro
     logging:
       driver: "json-file"
       options:

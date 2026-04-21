@@ -32,6 +32,7 @@ import socket
 import sqlite3
 import time
 import uuid
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
@@ -663,8 +664,18 @@ def get_ami_config() -> Dict:
     row = cur.fetchone()
     conn.close()
     if row:
-        return dict(row)
-    return {"ami_host": "127.0.0.1", "ami_port": 5038, "ami_username": "admin",
+        config = dict(row)
+        # Surcharge par variable d'environnement Docker (ASTERISK_HOST / ASTERISK_PORT)
+        env_host = os.environ.get("ASTERISK_HOST")
+        env_port = os.environ.get("ASTERISK_PORT")
+        if env_host:
+            config["ami_host"] = env_host
+        if env_port:
+            config["ami_port"] = int(env_port)
+        return config
+    return {"ami_host": os.environ.get("ASTERISK_HOST", "127.0.0.1"),
+            "ami_port": int(os.environ.get("ASTERISK_PORT", "5038")),
+            "ami_username": "admin",
             "ami_secret": "", "ami_enabled": 0, "ami_context": "faxcloud-detect",
             "ami_caller_id": "FaxCloudTest", "ami_call_timeout": 15,
             "ami_detect_timeout": 10, "ami_trunk": "", "cache_ttl_hours": 168}
