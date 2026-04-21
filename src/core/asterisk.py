@@ -879,6 +879,10 @@ class AsteriskEngine:
                 cached["from_cache"] = True
                 return cached
 
+        # Mode simulation : résultat synthétique sans appel réel
+        if self._ami_config.simulation:
+            return self._simulate_tone(numero)
+
         # Appel test
         ami = AMIConnection(self._ami_config)
         if not ami.connect():
@@ -894,6 +898,42 @@ class AsteriskEngine:
             save_tone_cache(result, self._ami_config.cache_ttl_hours)
 
         result["from_cache"] = False
+        return result
+
+    def _simulate_tone(self, numero: str) -> Dict:
+        """Retourne un résultat simulé sans appel réel selon le type du numéro."""
+        # Classifier le numéro par préfixe pour deviner le type attendu
+        num_type, _ = self.classify_number(numero)
+
+        if num_type in (NUMBER_TYPE_SDA, NUMBER_TYPE_SDA_FAX):
+            tone, is_fax = TONE_FAX, True
+            details = "[SIM] CNG fax tone detected (SDA range)"
+        elif num_type in (NUMBER_TYPE_GEOGRAPHIC,):
+            tone, is_fax = TONE_VOICE, False
+            details = "[SIM] Human voice detected (geographic)"
+        elif num_type in (NUMBER_TYPE_MOBILE,):
+            tone, is_fax = TONE_VOICE, False
+            details = "[SIM] Human voice detected (mobile)"
+        elif num_type in (NUMBER_TYPE_PHONE,):
+            tone, is_fax = TONE_VOICE, False
+            details = "[SIM] Human voice detected"
+        else:
+            tone, is_fax = TONE_NO_ANSWER, False
+            details = "[SIM] No answer (unknown/special number)"
+
+        time.sleep(0.05)  # Simuler un léger délai réseau
+
+        result = {
+            "numero": numero,
+            "tone": tone,
+            "is_fax": is_fax,
+            "details": details,
+            "duration_ms": 50,
+            "from_cache": False,
+            "from_simulation": True,
+        }
+        save_tone_cache(result, self._ami_config.cache_ttl_hours)
+        logger.debug("[SIM] %s → tone=%s", numero, tone)
         return result
 
     def detect_tones_batch(self, numeros: List[str], force: bool = False,

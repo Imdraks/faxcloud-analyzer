@@ -108,6 +108,71 @@
                             <a href="/reports" class="btn">Voir les rapports</a>
                         </div>
                     </section>
+
+                    <section class="section" style="grid-column: 1 / -1;">
+                        <h2>Configuration Asterisk</h2>
+                        <form id="asteriskConfigForm" style="display: grid; gap: 0.75rem;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; min-width: 160px;">
+                                    <input type="checkbox" id="cfgEnabled" style="cursor: pointer;">
+                                    <span><strong>AMI activé</strong></span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; min-width: 160px;">
+                                    <input type="checkbox" id="cfgSimulation" style="cursor: pointer;">
+                                    <span><strong>Mode simulation</strong></span>
+                                </label>
+                            </div>
+                            <p id="cfgSimulationHelp" style="margin: 0; font-size: 0.85rem; color: #888; display: none;">
+                                En mode simulation, aucun appel réel n'est effectué. Les résultats sont générés automatiquement selon le type de numéro (SDA → fax, géographique/mobile → voix).
+                            </p>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem;">
+                                <div>
+                                    <label for="cfgHost" style="font-size: 0.85rem; font-weight: 600;">Hôte AMI</label>
+                                    <input type="text" id="cfgHost" placeholder="127.0.0.1" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label for="cfgPort" style="font-size: 0.85rem; font-weight: 600;">Port AMI</label>
+                                    <input type="number" id="cfgPort" placeholder="5038" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label for="cfgUsername" style="font-size: 0.85rem; font-weight: 600;">Utilisateur AMI</label>
+                                    <input type="text" id="cfgUsername" placeholder="admin" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label for="cfgSecret" style="font-size: 0.85rem; font-weight: 600;">Mot de passe AMI</label>
+                                    <input type="password" id="cfgSecret" placeholder="••••••••" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label for="cfgTrunk" style="font-size: 0.85rem; font-weight: 600;">Trunk SIP</label>
+                                    <input type="text" id="cfgTrunk" placeholder="PJSIP/trunk" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label for="cfgContext" style="font-size: 0.85rem; font-weight: 600;">Contexte dialplan</label>
+                                    <input type="text" id="cfgContext" placeholder="faxcloud-detect" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label for="cfgCallTimeout" style="font-size: 0.85rem; font-weight: 600;">Timeout appel (s)</label>
+                                    <input type="number" id="cfgCallTimeout" placeholder="15" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label for="cfgDetectTimeout" style="font-size: 0.85rem; font-weight: 600;">Timeout détection (s)</label>
+                                    <input type="number" id="cfgDetectTimeout" placeholder="10" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label for="cfgCacheTtl" style="font-size: 0.85rem; font-weight: 600;">Cache TTL (heures)</label>
+                                    <input type="number" id="cfgCacheTtl" placeholder="168" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <button type="submit" class="btn">Enregistrer</button>
+                                <span id="cfgSaveStatus" style="font-size: 0.85rem; color: #666;"></span>
+                            </div>
+                        </form>
+                    </section>
+            </main>
+        </div>
+    </div>
+
                 </div>
             </main>
         </div>

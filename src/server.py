@@ -671,10 +671,11 @@ def create_app() -> Flask:
         detect_timeout = int(data.get("ami_detect_timeout", 10))
         trunk = data.get("ami_trunk", "")
         cache_ttl_hours = int(data.get("cache_ttl_hours", 168))
+        simulation = bool(data.get("ami_simulation", False))
 
         save_ami_config(host, port, username, secret, enabled,
                         context, caller_id, call_timeout, detect_timeout,
-                        trunk, cache_ttl_hours)
+                        trunk, cache_ttl_hours, simulation)
         reload_asterisk_engine()
 
         insert_audit_event(
