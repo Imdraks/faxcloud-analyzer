@@ -18,8 +18,9 @@ function escapeHtml(value) {
 }
 
 class ReportEntries {
-  constructor(reportId) {
+  constructor(reportId, hasAsteriskDetection = false) {
     this.reportId = reportId;
+    this.hasAsteriskDetection = hasAsteriskDetection;
     this.limit = 20;
     this.total = null;
     this.page = 1;
@@ -235,8 +236,9 @@ class ReportEntries {
     const fragment = document.createDocumentFragment();
 
     if (!rows || rows.length === 0) {
+      const colCount = this.hasAsteriskDetection ? 10 : 7;
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="6"><span class="text-muted">Aucune entrée pour ces filtres.</span></td>`;
+      tr.innerHTML = `<td colspan="${colCount}"><span class="text-muted">Aucune entrée pour ces filtres.</span></td>`;
       fragment.appendChild(tr);
       this.tbody.appendChild(fragment);
       return;
@@ -245,14 +247,32 @@ class ReportEntries {
     for (const r of rows) {
       const tr = document.createElement('tr');
       if (!r.valide) tr.classList.add('row-invalid');
-      tr.innerHTML = `
+      
+      let html = `
         <td>${escapeHtml(r.datetime)}</td>
         <td>${escapeHtml(r.type)}</td>
         <td>${escapeHtml(r.pages)}</td>
         <td>${escapeHtml(r.utilisateur)}</td>
         <td>${escapeHtml(r.numero_normalise || r.numero_original)}</td>
+        <td>${escapeHtml(r.numero_type_label || '—')}</td>
         <td>${r.valide ? '✓' : '✗'}</td>
       `;
+      
+      if (this.hasAsteriskDetection && r.asterisk_detected) {
+        html += `
+        <td>${escapeHtml(r.asterisk_tone || '—')}</td>
+        <td>${r.asterisk_is_fax ? '✓ FAX' : '✗'}</td>
+        <td>${r.asterisk_duration_ms || '—'}</td>
+        `;
+      } else if (this.hasAsteriskDetection) {
+        html += `
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        `;
+      }
+      
+      tr.innerHTML = html;
       fragment.appendChild(tr);
     }
 
@@ -350,6 +370,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const reportId = root?.getAttribute('data-report-id');
   if (!reportId) return;
 
+  const hasAsteriskDetection = root?.getAttribute('data-asterisk-detection') === 'True';
+
   const deleteBtn = document.getElementById('deleteReportBtn');
   deleteBtn?.addEventListener('click', async () => {
     const ok = confirm('Supprimer ce rapport ? Cette action est irréversible.');
@@ -369,7 +391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  const entries = new ReportEntries(reportId);
+  const entries = new ReportEntries(reportId, hasAsteriskDetection);
   window.addEventListener('popstate', async () => {
     entries.restoreFromUrl();
     await entries.loadPage(entries.page || 1);

@@ -1064,6 +1064,93 @@ class AsteriskEngine:
 
         return entries
 
+    def classify_entries_with_asterisk_detection(self, entries: List[Dict], enable_detection: bool = False) -> List[Dict]:
+        """
+        Enrichit les entrées avec détection Asterisk réelle (optional).
+        
+        Si enable_detection=True et AMI activé :
+          - Appelle Asterisk pour chaque numéro unique
+          - Ajoute : asterisk_tone, asterisk_is_fax, asterisk_duration_ms, asterisk_hangup_cause
+          - Classifie basé sur le résultat de détection
+        
+        Si enable_detection=False :
+          - Classifie par la méthode standard (cache + plages SDA + préfixe)
+        
+        Args:
+            entries: Liste des entrées à classifier
+            enable_detection: Activer la détection Asterisk réelle
+        
+        Returns:
+            Entries enrichies avec numero_type, numero_type_label et optionnellement asterisk_*
+        """
+        if not self._loaded:
+            self.load()
+
+        # Phase 1 : Classification standard (rapide)
+        entries = self.classify_entries(entries)
+        
+        # Phase 2 : Détection Asterisk si activée
+        if not enable_detection or not self._config.get("ami_enabled"):
+            return entries
+
+        logger.info("Détection Asterisk en temps réel pour %d entrées", len(entries))
+        
+        # Déduplique les numéros à analyser
+        unique_numeros = {}
+        for entry in entries:
+            numero = entry.get("numero_normalise", "")
+            if numero and numero not in unique_numeros:
+                unique_numeros[numero] = True
+        
+        # Détecte chaque numéro unique
+        detection_results = {}
+        for idx, numero in enumerate(unique_numeros.keys(), 1):
+            try:
+                result = self.detect_tone(numero)
+                detection_results[numero] = result
+                logger.debug("Détection %d/%d: %s → %s (fax=%s)",
+                            idx, len(unique_numeros), numero, result.get("tone"), result.get("is_fax"))
+                # Petit délai entre les appels pour ne pas surcharger Asterisk
+                if idx < len(unique_numeros):
+                    time.sleep(1)
+            except Exception as e:
+                logger.warning("Erreur détection %s: %s", numero, e)
+                detection_results[numero] = {
+                    "tone": "error",
+                    "is_fax": False,
+                    "duration_ms": 0,
+                    "details": str(e)
+                }
+        
+        # Phase 3 : Enrichit les entrées avec les résultats
+        for entry in entries:
+            numero = entry.get("numero_normalise", "")
+            if numero in detection_results:
+                result = detection_results[numero]
+                
+                # Ajoute les champs Asterisk
+                entry["asterisk_tone"] = result.get("tone", "")
+                entry["asterisk_is_fax"] = result.get("is_fax", False)
+                entry["asterisk_duration_ms"] = result.get("duration_ms", 0)
+                entry["asterisk_hangup_cause"] = result.get("hangup_cause", 0)
+                entry["asterisk_amd_status"] = result.get("amd_status", "")
+                entry["asterisk_detected"] = True
+                
+                # Reclassifie si Asterisk a donné un résultat valide
+                if result.get("tone") and result.get("tone") != "error":
+                    num_type, num_label = self._tone_to_type(result.get("tone", ""), result.get("is_fax", False))
+                    entry["numero_type"] = num_type
+                    entry["numero_type_label"] = num_label
+                    entry["numero_type_source"] = "asterisk_detection"
+                else:
+                    entry["numero_type_source"] = "fallback"
+            else:
+                entry["asterisk_detected"] = False
+                entry["numero_type_source"] = "cache_or_prefix"
+        
+        logger.info("Détection Asterisk complétée: %d numéros analysés", len(detection_results))
+        return entries
+
     def get_stats(self, entries: List[Dict]) -> Dict:
         """Calcule les statistiques SDA/Téléphone à partir des entrées classifiées."""
         stats = {

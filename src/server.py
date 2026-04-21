@@ -971,6 +971,7 @@ def create_app() -> Flask:
         contract_id = request.form.get("contract") or None
         date_debut = request.form.get("start") or None
         date_fin = request.form.get("end") or None
+        enable_detection = request.form.get("enable_detection", "false").lower() == "true"
         ip = request.remote_addr
         user_agent = request.headers.get("User-Agent")
 
@@ -1020,7 +1021,7 @@ def create_app() -> Flask:
                 rows = import_faxcloud_export(str(filepath))
 
                 _set_job(upload_id, stage="analyze", message="Analyse…", percent=55)
-                analysis = analyze_data(rows, contract_id, date_debut, date_fin)
+                analysis = analyze_data(rows, contract_id, date_debut, date_fin, enable_asterisk_detection=enable_detection)
 
                 _set_job(upload_id, stage="report", message="Génération du rapport…", percent=75)
                 report_data = generate_report(analysis)
@@ -1103,9 +1104,10 @@ def create_app() -> Flask:
         contract_id = request.form.get("contract") or None
         date_debut = request.form.get("start") or None
         date_fin = request.form.get("end") or None
+        enable_detection = request.form.get("enable_detection", "false").lower() == "true"
 
         rows = import_faxcloud_export(str(filepath))
-        analysis = analyze_data(rows, contract_id, date_debut, date_fin)
+        analysis = analyze_data(rows, contract_id, date_debut, date_fin, enable_asterisk_detection=enable_detection)
         report_data = generate_report(analysis)
         insert_report_to_db(
             report_data["report_id"],

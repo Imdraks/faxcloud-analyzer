@@ -30,6 +30,12 @@ class FaxApp {
 
         const formData = new FormData();
         formData.append('file', file);
+        
+        // Ajoute les paramètres d'analyse
+        const enableDetection = document.getElementById('enableDetection');
+        if (enableDetection && enableDetection.checked) {
+            formData.append('enable_detection', 'true');
+        }
 
         const msgDiv = document.getElementById('uploadMessage');
         const progressDiv = document.getElementById('uploadProgress');

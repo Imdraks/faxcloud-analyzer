@@ -63,6 +63,17 @@
                             <input type="file" id="fileInput" accept=".csv,.xlsx" style="display: none;">
                         </div>
 
+                        <div style="margin-top: 1.5rem; padding: 1rem; background: #f5f5f5; border-radius: 4px;">
+                            <h3 style="margin-top: 0;">Options d'analyse</h3>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="enableDetection" style="cursor: pointer;">
+                                <span><strong>Détection Asterisk</strong></span>
+                            </label>
+                            <p style="margin-top: 0.5rem; margin-bottom: 0; font-size: 0.9rem; color: #666;">
+                                Active la détection des tonalités fax en temps réel via Asterisk (peut être lent avec beaucoup de numéros).
+                            </p>
+                        </div>
+
                         <div id="uploadProgress" class="hidden">
                             <p id="uploadStatus" role="status" aria-live="polite">Importation en cours...</p>
                             <div class="progress-bar">

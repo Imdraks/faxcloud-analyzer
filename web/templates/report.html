@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="app-shell" data-report-id="{{ report.id }}">
+    <div class="app-shell" data-report-id="{{ report.id }}" data-asterisk-detection="{{ report.asterisk_detection.detection_enabled if report.asterisk_detection else false }}">
         <aside class="sidebar">
             <div class="brand">
                 <div class="brand-title">FaxCloud Analyzer</div>
@@ -98,6 +98,67 @@
                     </div>
                 </section>
 
+                {% if report.asterisk_detection %}
+                <section class="section">
+                    <h2>Détection Asterisk</h2>
+                    {% if report.asterisk_detection.detection_enabled %}
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <h4>FAX Détectés</h4>
+                                <p class="stat-value">{{ report.asterisk_detection.fax_detected }}</p>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Téléphones Détectés</h4>
+                                <p class="stat-value">{{ report.asterisk_detection.phone_detected }}</p>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Inconnus</h4>
+                                <p class="stat-value">{{ report.asterisk_detection.unknown_detected }}</p>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Erreurs</h4>
+                                <p class="stat-value">{{ report.asterisk_detection.detection_errors }}</p>
+                            </div>
+                        </div>
+                        <p class="text-muted" style="margin-top: 1rem;">Les résultats ci-dessus sont basés sur la détection des tonalités fax via Asterisk AMI.</p>
+                    {% else %}
+                        <p class="text-muted">Détection Asterisk désactivée pour ce rapport. Classification basée sur les plages SDA et préfixes géographiques.</p>
+                    {% endif %}
+                </section>
+                {% endif %}
+
+                {% if report.asterisk_stats %}
+                <section class="section">
+                    <h2>Classification SDA / Téléphone</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h4>SDA</h4>
+                            <p class="stat-value">{{ report.asterisk_stats.sda or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>SDA FAX</h4>
+                            <p class="stat-value">{{ report.asterisk_stats.sda_fax or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Téléphone</h4>
+                            <p class="stat-value">{{ report.asterisk_stats.telephone or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Mobile</h4>
+                            <p class="stat-value">{{ report.asterisk_stats.mobile or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>International</h4>
+                            <p class="stat-value">{{ report.asterisk_stats.international or 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Special</h4>
+                            <p class="stat-value">{{ report.asterisk_stats.special or 0 }}</p>
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
                 {% if report.qr_path %}
                     <section class="section">
                         <h2>QR Code</h2>
@@ -170,7 +231,13 @@
                                     <th>Pages</th>
                                     <th>Utilisateur</th>
                                     <th>Numéro</th>
+                                    <th>Type de Numéro</th>
                                     <th>Valide</th>
+                                    {% if report.asterisk_detection and report.asterisk_detection.detection_enabled %}
+                                    <th>Tonalité</th>
+                                    <th>FAX?</th>
+                                    <th>Durée (ms)</th>
+                                    {% endif %}
                                 </tr>
                             </thead>
                             <tbody id="entriesTableBody"></tbody>

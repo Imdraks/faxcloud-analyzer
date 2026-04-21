@@ -84,7 +84,7 @@ def _normalize_row(row: Dict) -> Dict:
     }
 
 
-def analyze_data(rows: List[Dict], contract_id: str | None, date_debut: str | None, date_fin: str | None) -> Dict:
+def analyze_data(rows: List[Dict], contract_id: str | None, date_debut: str | None, date_fin: str | None, enable_asterisk_detection: bool = False) -> Dict:
     logger.info("Analyse de %s lignes", len(rows))
     entries = [_normalize_row(row) for row in rows]
 
@@ -124,15 +124,45 @@ def analyze_data(rows: List[Dict], contract_id: str | None, date_debut: str | No
 
     # Classification SDA / Téléphone via le moteur Asterisk
     asterisk_stats = {}
+    detection_stats = {
+        "detection_enabled": enable_asterisk_detection,
+        "fax_detected": 0,
+        "phone_detected": 0,
+        "unknown_detected": 0,
+        "detection_errors": 0,
+    }
+    
     if _HAS_ASTERISK:
         try:
             engine = _get_asterisk_engine()
-            entries = engine.classify_entries(entries)
+            
+            # Utilise la détection Asterisk si activée
+            if enable_asterisk_detection:
+                entries = engine.classify_entries_with_asterisk_detection(entries, enable_detection=True)
+            else:
+                entries = engine.classify_entries(entries)
+            
             asterisk_stats = engine.get_stats(entries)
-            logger.info("Classification Asterisk: %d SDA, %d téléphone, %d mobile",
+            
+            # Enrichit les statistiques de détection
+            if enable_asterisk_detection:
+                for entry in entries:
+                    if entry.get("asterisk_detected"):
+                        if entry.get("asterisk_is_fax"):
+                            detection_stats["fax_detected"] += 1
+                        elif entry.get("numero_type") in ["phone", "geographic", "sda_fax"]:
+                            detection_stats["phone_detected"] += 1
+                        else:
+                            detection_stats["unknown_detected"] += 1
+                    
+                    if entry.get("asterisk_tone") == "error":
+                        detection_stats["detection_errors"] += 1
+            
+            logger.info("Classification Asterisk: %d SDA, %d téléphone, %d mobile (détection: %s)",
                         asterisk_stats.get("sda", 0),
                         asterisk_stats.get("telephone", 0),
-                        asterisk_stats.get("mobile", 0))
+                        asterisk_stats.get("mobile", 0),
+                        "activée" if enable_asterisk_detection else "désactivée")
         except Exception as e:
             logger.warning("Classification Asterisk échouée: %s", e)
 
@@ -144,5 +174,6 @@ def analyze_data(rows: List[Dict], contract_id: str | None, date_debut: str | No
         "date_fin": date_fin,
         "statistics": statistics,
         "asterisk_stats": asterisk_stats,
+        "asterisk_detection": detection_stats,
         "entries": entries,
     }
