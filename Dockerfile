@@ -56,4 +56,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 EXPOSE 8000
 
 # Use gunicorn with optimized settings
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--threads", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "src.wsgi:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--threads", "8", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "src.wsgi:app"]

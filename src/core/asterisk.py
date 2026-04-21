@@ -33,6 +33,7 @@ import sqlite3
 import time
 import uuid
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
@@ -101,6 +102,7 @@ class AMIConfig:
     detect_timeout: int = 10           # Temps d'écoute de la tonalité après décrochage
     trunk: str = ""                    # Trunk SIP à utiliser (ex: "PJSIP/trunk-orange")
     cache_ttl_hours: int = 24 * 7     # Durée de validité du cache (7 jours)
+    simulation: bool = False           # Mode simulation (sans appels réels)
 
 
 @dataclass
@@ -579,6 +581,7 @@ def init_asterisk_tables() -> None:
         "ALTER TABLE asterisk_config ADD COLUMN ami_detect_timeout INTEGER DEFAULT 10",
         "ALTER TABLE asterisk_config ADD COLUMN ami_trunk TEXT DEFAULT ''",
         "ALTER TABLE asterisk_config ADD COLUMN cache_ttl_hours INTEGER DEFAULT 168",
+        "ALTER TABLE asterisk_config ADD COLUMN ami_simulation INTEGER DEFAULT 0",
     ):
         try:
             cur.execute(stmt)
@@ -678,13 +681,15 @@ def get_ami_config() -> Dict:
             "ami_username": "admin",
             "ami_secret": "", "ami_enabled": 0, "ami_context": "faxcloud-detect",
             "ami_caller_id": "FaxCloudTest", "ami_call_timeout": 15,
-            "ami_detect_timeout": 10, "ami_trunk": "", "cache_ttl_hours": 168}
+            "ami_detect_timeout": 10, "ami_trunk": "", "cache_ttl_hours": 168,
+            "ami_simulation": 0}
 
 
 def save_ami_config(host: str, port: int, username: str, secret: str, enabled: bool,
                     context: str = "faxcloud-detect", caller_id: str = "FaxCloudTest",
                     call_timeout: int = 15, detect_timeout: int = 10,
-                    trunk: str = "", cache_ttl_hours: int = 168) -> None:
+                    trunk: str = "", cache_ttl_hours: int = 168,
+                    simulation: bool = False) -> None:
     conn = _connect_db()
     cur = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
@@ -693,12 +698,12 @@ def save_ami_config(host: str, port: int, username: str, secret: str, enabled: b
         INSERT OR REPLACE INTO asterisk_config 
         (id, ami_host, ami_port, ami_username, ami_secret, ami_enabled,
          ami_context, ami_caller_id, ami_call_timeout, ami_detect_timeout,
-         ami_trunk, cache_ttl_hours, updated_at)
-        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ami_trunk, cache_ttl_hours, ami_simulation, updated_at)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (host, port, username, secret, 1 if enabled else 0,
          context, caller_id, call_timeout, detect_timeout,
-         trunk, cache_ttl_hours, now),
+         trunk, cache_ttl_hours, 1 if simulation else 0, now),
     )
     conn.commit()
     conn.close()
@@ -814,6 +819,7 @@ class AsteriskEngine:
             detect_timeout=config.get("ami_detect_timeout", 10),
             trunk=config.get("ami_trunk", ""),
             cache_ttl_hours=config.get("cache_ttl_hours", 168),
+            simulation=bool(config.get("ami_simulation", 0)),
         )
 
         # Si AMI activé, récupérer les peers
@@ -1090,11 +1096,13 @@ class AsteriskEngine:
         entries = self.classify_entries(entries)
         
         # Phase 2 : Détection Asterisk si activée
-        if not enable_detection or not self._config.get("ami_enabled"):
+        if not enable_detection:
             return entries
 
-        logger.info("Détection Asterisk en temps réel pour %d entrées", len(entries))
-        
+        if not self._ami_config or not self._ami_config.enabled:
+            logger.info("Détection Asterisk ignorée: AMI désactivé ou non configuré")
+            return entries
+
         # Déduplique les numéros à analyser
         unique_numeros = {}
         for entry in entries:
@@ -1102,25 +1110,56 @@ class AsteriskEngine:
             if numero and numero not in unique_numeros:
                 unique_numeros[numero] = True
         
-        # Détecte chaque numéro unique
+        logger.info(
+            "Détection Asterisk en temps réel: %d numéros uniques sur %d entrées",
+            len(unique_numeros), len(entries),
+        )
+
+        # Détecte chaque numéro unique en parallèle (max 10 appels simultanés)
         detection_results = {}
-        for idx, numero in enumerate(unique_numeros.keys(), 1):
-            try:
-                result = self.detect_tone(numero)
+        consecutive_connection_failures = 0
+        _MAX_CONN_FAILURES = 3  # Abandon si l'AMI est inaccessible
+        _MAX_WORKERS = 10       # Appels simultanés vers Asterisk
+
+        numeros_list = list(unique_numeros.keys())
+        total_unique = len(numeros_list)
+
+        with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+            future_to_numero = {
+                executor.submit(self.detect_tone, numero): numero
+                for numero in numeros_list
+            }
+
+            for future in as_completed(future_to_numero):
+                numero = future_to_numero[future]
+                try:
+                    result = future.result()
+                except Exception as e:
+                    logger.warning("Erreur détection %s: %s", numero, e)
+                    result = {"tone": "error", "is_fax": False, "duration_ms": 0, "details": str(e)}
+
                 detection_results[numero] = result
+
+                is_conn_failure = (
+                    result.get("tone") == "error"
+                    and "Impossible de se connecter" in result.get("details", "")
+                )
+                if is_conn_failure:
+                    consecutive_connection_failures += 1
+                    if consecutive_connection_failures >= _MAX_CONN_FAILURES:
+                        logger.warning(
+                            "Détection Asterisk abandonnée: AMI injoignable après %d tentatives",
+                            consecutive_connection_failures,
+                        )
+                        for f in future_to_numero:
+                            f.cancel()
+                        break
+                else:
+                    consecutive_connection_failures = 0
+
+                completed = len(detection_results)
                 logger.debug("Détection %d/%d: %s → %s (fax=%s)",
-                            idx, len(unique_numeros), numero, result.get("tone"), result.get("is_fax"))
-                # Petit délai entre les appels pour ne pas surcharger Asterisk
-                if idx < len(unique_numeros):
-                    time.sleep(1)
-            except Exception as e:
-                logger.warning("Erreur détection %s: %s", numero, e)
-                detection_results[numero] = {
-                    "tone": "error",
-                    "is_fax": False,
-                    "duration_ms": 0,
-                    "details": str(e)
-                }
+                            completed, total_unique, numero, result.get("tone"), result.get("is_fax"))
         
         # Phase 3 : Enrichit les entrées avec les résultats
         for entry in entries:
