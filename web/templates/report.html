@@ -3,6 +3,228 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report.contract_id or 'Rapport' }} — FaxCloud Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="app-shell" data-report-id="{{ report.id }}" data-asterisk-detection="{{ report.asterisk_detection.detection_enabled if report.asterisk_detection else false }}">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-title">FaxCloud Analyzer</div>
+            <div class="brand-subtitle">Interface interne</div>
+        </div>
+        <nav class="side-nav">
+            <a class="side-link" href="/" aria-label="Accueil">
+                <svg class="side-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 11.5L12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/>
+                </svg>
+                Accueil
+            </a>
+            <a class="side-link active" href="/reports" aria-label="Rapports">
+                <svg class="side-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M7 3h7l3 3v15H7z"/><path d="M14 3v4h4"/><path d="M9 12h6"/><path d="M9 16h6"/>
+                </svg>
+                Rapports
+            </a>
+        </nav>
+        <div class="side-footer">
+            <button id="themeToggle" class="btn-theme" type="button">Mode sombre</button>
+            <span class="side-footer-meta">v1.2.0</span>
+        </div>
+    </aside>
+
+    <div class="content">
+        <header class="topbar">
+            <div>
+                <h1 class="page-title">{{ report.contract_id or 'Rapport sans contrat' }}</h1>
+                <p class="page-subtitle">{{ report.date_debut or '—' }} → {{ report.date_fin or '—' }}{% if report.source_filename %} · {{ report.source_filename }}{% endif %}</p>
+            </div>
+            <div class="topbar-actions">
+                <a class="btn btn-ghost btn-small" href="/api/report/{{ report.id }}/export.csv" download>CSV</a>
+                <a class="btn btn-ghost btn-small" href="/api/report/{{ report.id }}/export.json" download>JSON</a>
+                <button id="deleteReportBtn" class="btn btn-danger btn-small" type="button">Supprimer</button>
+            </div>
+        </header>
+
+        <main class="main">
+
+            <!-- KPIs -->
+            <section class="section">
+                <h2>Résumé</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>Total FAX</h4>
+                        <p class="stat-value">{{ report.total_fax }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>FAX SF</h4>
+                        <p class="stat-value">{{ report.fax_sf or report.fax_envoyes or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>FAX RF</h4>
+                        <p class="stat-value">{{ report.fax_rf or report.fax_recus or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pages totales</h4>
+                        <p class="stat-value">{{ report.pages_reelles_totales or report.pages_totales or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pages SF</h4>
+                        <p class="stat-value">{{ report.pages_reelles_sf or report.pages_envoyees or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pages RF</h4>
+                        <p class="stat-value">{{ report.pages_reelles_rf or report.pages_recues or 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Erreurs</h4>
+                        <p class="stat-value">{{ report.erreurs_totales }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Réussite</h4>
+                        <p class="stat-value">{{ report.taux_reussite }}%</p>
+                    </div>
+                </div>
+            </section>
+
+            {% if report.asterisk_detection %}
+            <section class="section">
+                <h2>Détection Asterisk</h2>
+                {% if report.asterisk_detection.detection_enabled %}
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h4>FAX détectés</h4>
+                            <p class="stat-value">{{ report.asterisk_detection.fax_detected }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Téléphones</h4>
+                            <p class="stat-value">{{ report.asterisk_detection.phone_detected }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Inconnus</h4>
+                            <p class="stat-value">{{ report.asterisk_detection.unknown_detected }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Erreurs</h4>
+                            <p class="stat-value">{{ report.asterisk_detection.detection_errors }}</p>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted">Détection désactivée — classification basée sur les plages SDA et préfixes géographiques.</p>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            {% if report.asterisk_stats %}
+            <section class="section">
+                <h2>Classification numéros</h2>
+                <div class="stats-grid">
+                    <div class="stat-card"><h4>SDA</h4><p class="stat-value">{{ report.asterisk_stats.sda or 0 }}</p></div>
+                    <div class="stat-card"><h4>SDA FAX</h4><p class="stat-value">{{ report.asterisk_stats.sda_fax or 0 }}</p></div>
+                    <div class="stat-card"><h4>Téléphone</h4><p class="stat-value">{{ report.asterisk_stats.telephone or 0 }}</p></div>
+                    <div class="stat-card"><h4>Mobile</h4><p class="stat-value">{{ report.asterisk_stats.mobile or 0 }}</p></div>
+                    <div class="stat-card"><h4>International</h4><p class="stat-value">{{ report.asterisk_stats.international or 0 }}</p></div>
+                    <div class="stat-card"><h4>Spécial</h4><p class="stat-value">{{ report.asterisk_stats.special or 0 }}</p></div>
+                </div>
+            </section>
+            {% endif %}
+
+            {% if report.qr_path %}
+            <section class="section">
+                <h2>QR Code</h2>
+                <img src="/api/report/{{ report.id }}/qr" alt="QR Code" style="width: 160px; height: 160px; display: block;">
+            </section>
+            {% endif %}
+
+            <!-- Entrées -->
+            <section class="section">
+                <h2>Entrées</h2>
+
+                <div id="entriesFilterBar" class="filter-bar" style="margin-bottom: 1rem;">
+                    <div class="filter-actions">
+                        <button id="entriesApplyFilters" class="btn btn-small" type="button">Filtrer</button>
+                        <button id="entriesClearFilters" class="btn btn-ghost btn-small" type="button">Réinitialiser</button>
+                    </div>
+                    <div class="filter-field">
+                        <label for="entriesTypeFilter" class="filter-label">Type</label>
+                        <select id="entriesTypeFilter" class="input">
+                            <option value="">Tous</option>
+                            <option value="send">send</option>
+                            <option value="receive">receive</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label for="entriesValidFilter" class="filter-label">Valide</label>
+                        <select id="entriesValidFilter" class="input">
+                            <option value="">Tous</option>
+                            <option value="1">Oui</option>
+                            <option value="0">Non</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label for="entriesDateFrom" class="filter-label">Du</label>
+                        <input id="entriesDateFrom" class="input" type="date">
+                    </div>
+                    <div class="filter-field">
+                        <label for="entriesDateTo" class="filter-label">Au</label>
+                        <input id="entriesDateTo" class="input" type="date">
+                    </div>
+                    <div class="filter-field filter-grow">
+                        <label for="entriesSearchInput" class="filter-label">Recherche</label>
+                        <input id="entriesSearchInput" class="input" type="text" placeholder="Utilisateur ou numéro…">
+                    </div>
+                    <div class="filter-field">
+                        <label for="entriesOrder" class="filter-label">Tri</label>
+                        <select id="entriesOrder" class="input">
+                            <option value="asc">Date ↑</option>
+                            <option value="desc">Date ↓</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="entriesPagination" class="pagination"></div>
+                <div id="entriesFilterSummary" class="filter-summary" style="margin-top: 0.6rem;"></div>
+                <p id="entriesStatus" class="text-muted" style="margin-top: 0.5rem;" role="status" aria-live="polite"></p>
+
+                <div class="table-wrap" style="margin-top: 0.9rem;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date / Heure</th>
+                                <th>Type</th>
+                                <th>Pages</th>
+                                <th>Utilisateur</th>
+                                <th>Numéro</th>
+                                <th>Type numéro</th>
+                                <th>Valide</th>
+                                {% if report.asterisk_detection and report.asterisk_detection.detection_enabled %}
+                                <th>Tonalité</th>
+                                <th>FAX?</th>
+                                <th>Durée (ms)</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody id="entriesTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div style="margin-top: 1.25rem;">
+                    <a href="/reports" class="btn btn-ghost btn-small">← Retour</a>
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+<script src="{{ url_for('static', filename='js/report.js') }}"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rapport - FaxCloud Analyzer</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>

@@ -3,6 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaxCloud Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-title">FaxCloud Analyzer</div>
+            <div class="brand-subtitle">Interface interne</div>
+        </div>
+        <nav class="side-nav">
+            <a class="side-link active" href="/" aria-label="Accueil">
+                <svg class="side-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 11.5L12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/>
+                </svg>
+                Accueil
+            </a>
+            <a class="side-link" href="/reports" aria-label="Rapports">
+                <svg class="side-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M7 3h7l3 3v15H7z"/><path d="M14 3v4h4"/><path d="M9 12h6"/><path d="M9 16h6"/>
+                </svg>
+                Rapports
+            </a>
+        </nav>
+        <div class="side-footer">
+            <button id="themeToggle" class="btn-theme" type="button">Mode sombre</button>
+            <span class="side-footer-meta">v1.2.0</span>
+        </div>
+    </aside>
+
+    <div class="content">
+        <header class="topbar">
+            <div>
+                <h1 class="page-title">Accueil</h1>
+                <p class="page-subtitle">Importer et analyser vos exports FaxCloud.</p>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="content-grid">
+
+                <!-- Import -->
+                <section class="section">
+                    <h2>Importer un fichier</h2>
+
+                    <div class="drag-drop-zone" id="dragDropZone">
+                        <strong>Glissez-déposez votre CSV ici</strong>
+                        <p>ou</p>
+                        <label for="fileInput" class="btn" style="margin-top: 0.75rem; cursor: pointer;">Sélectionner un fichier</label>
+                        <input type="file" id="fileInput" accept=".csv,.xlsx" style="display: none;">
+                    </div>
+
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.83rem; cursor: pointer; color: var(--c-muted); margin-bottom: 0.75rem;">
+                        <input type="checkbox" id="enableDetection">
+                        Détection Asterisk (peut être lent)
+                    </label>
+
+                    <div id="uploadProgress" class="hidden">
+                        <p id="uploadStatus" role="status" aria-live="polite" style="font-size: 0.83rem; color: var(--c-muted);"></p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+
+                    <div id="uploadMessage"></div>
+                </section>
+
+                <!-- Dashboard -->
+                <section class="section">
+                    <h2>Vue d'ensemble</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h4>Rapports</h4>
+                            <p class="stat-value">{{ dashboard.reports_count if dashboard else reports_count }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Total FAX</h4>
+                            <p class="stat-value">{{ dashboard.total_fax if dashboard else 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Erreurs</h4>
+                            <p class="stat-value">{{ dashboard.total_errors if dashboard else 0 }}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Taux moyen</h4>
+                            <p class="stat-value">{{ '%.0f'|format(dashboard.avg_success_rate) if dashboard else '0' }}%</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1.25rem;">
+                        <a href="/reports" class="btn btn-ghost">Voir les rapports →</a>
+                    </div>
+                </section>
+
+                <!-- Simulation Asterisk -->
+                <section class="section" style="grid-column: 1 / -1;">
+                    <h2>Détection Asterisk</h2>
+                    <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+                        <button id="btnSimulation" class="btn btn-ghost" type="button" style="min-width: 190px;">Chargement…</button>
+                        <span id="simStatus" class="text-muted"></span>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FaxCloud Analyzer - Accueil</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -110,69 +226,12 @@
                     </section>
 
                     <section class="section" style="grid-column: 1 / -1;">
-                        <h2>Configuration Asterisk</h2>
-                        <form id="asteriskConfigForm" style="display: grid; gap: 0.75rem;">
-                            <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start;">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; min-width: 160px;">
-                                    <input type="checkbox" id="cfgEnabled" style="cursor: pointer;">
-                                    <span><strong>AMI activé</strong></span>
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; min-width: 160px;">
-                                    <input type="checkbox" id="cfgSimulation" style="cursor: pointer;">
-                                    <span><strong>Mode simulation</strong></span>
-                                </label>
-                            </div>
-                            <p id="cfgSimulationHelp" style="margin: 0; font-size: 0.85rem; color: #888; display: none;">
-                                En mode simulation, aucun appel réel n'est effectué. Les résultats sont générés automatiquement selon le type de numéro (SDA → fax, géographique/mobile → voix).
-                            </p>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem;">
-                                <div>
-                                    <label for="cfgHost" style="font-size: 0.85rem; font-weight: 600;">Hôte AMI</label>
-                                    <input type="text" id="cfgHost" placeholder="127.0.0.1" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label for="cfgPort" style="font-size: 0.85rem; font-weight: 600;">Port AMI</label>
-                                    <input type="number" id="cfgPort" placeholder="5038" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label for="cfgUsername" style="font-size: 0.85rem; font-weight: 600;">Utilisateur AMI</label>
-                                    <input type="text" id="cfgUsername" placeholder="admin" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label for="cfgSecret" style="font-size: 0.85rem; font-weight: 600;">Mot de passe AMI</label>
-                                    <input type="password" id="cfgSecret" placeholder="••••••••" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label for="cfgTrunk" style="font-size: 0.85rem; font-weight: 600;">Trunk SIP</label>
-                                    <input type="text" id="cfgTrunk" placeholder="PJSIP/trunk" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label for="cfgContext" style="font-size: 0.85rem; font-weight: 600;">Contexte dialplan</label>
-                                    <input type="text" id="cfgContext" placeholder="faxcloud-detect" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label for="cfgCallTimeout" style="font-size: 0.85rem; font-weight: 600;">Timeout appel (s)</label>
-                                    <input type="number" id="cfgCallTimeout" placeholder="15" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label for="cfgDetectTimeout" style="font-size: 0.85rem; font-weight: 600;">Timeout détection (s)</label>
-                                    <input type="number" id="cfgDetectTimeout" placeholder="10" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label for="cfgCacheTtl" style="font-size: 0.85rem; font-weight: 600;">Cache TTL (heures)</label>
-                                    <input type="number" id="cfgCacheTtl" placeholder="168" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                                </div>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <button type="submit" class="btn">Enregistrer</button>
-                                <span id="cfgSaveStatus" style="font-size: 0.85rem; color: #666;"></span>
-                            </div>
-                        </form>
+                        <h2>Détection Asterisk</h2>
+                        <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                            <button id="btnSimulation" class="btn" type="button" style="min-width: 200px;">Chargement…</button>
+                            <span id="simStatus" style="font-size: 0.9rem; color: #666;"></span>
+                        </div>
                     </section>
-            </main>
-        </div>
-    </div>
-
                 </div>
             </main>
         </div>

@@ -24,84 +24,53 @@ class FaxApp {
             });
         }
 
-        this.initAsteriskConfig();
+        this.initSimulationToggle();
     }
 
-    async initAsteriskConfig() {
-        const form = document.getElementById('asteriskConfigForm');
-        if (!form) return;
+    async initSimulationToggle() {
+        const btn = document.getElementById('btnSimulation');
+        const statusEl = document.getElementById('simStatus');
+        if (!btn) return;
 
-        // Charger la config courante
+        let simActive = false;
+
+        const updateBtn = () => {
+            btn.textContent = simActive ? 'Désactiver la simulation' : 'Activer la simulation';
+            btn.style.background = simActive ? '#c0392b' : '';
+            if (statusEl) statusEl.textContent = simActive
+                ? 'Mode simulation actif — les résultats sont générés automatiquement'
+                : '';
+        };
+
+        // Charger l'état courant
         try {
             const res = await fetch('/api/asterisk/config');
             if (res.ok) {
                 const cfg = await res.json();
-                document.getElementById('cfgEnabled').checked = !!cfg.ami_enabled;
-                document.getElementById('cfgSimulation').checked = !!cfg.ami_simulation;
-                document.getElementById('cfgHost').value = cfg.ami_host || '';
-                document.getElementById('cfgPort').value = cfg.ami_port || 5038;
-                document.getElementById('cfgUsername').value = cfg.ami_username || '';
-                document.getElementById('cfgSecret').value = '';  // masqué côté serveur
-                document.getElementById('cfgTrunk').value = cfg.ami_trunk || '';
-                document.getElementById('cfgContext').value = cfg.ami_context || 'faxcloud-detect';
-                document.getElementById('cfgCallTimeout').value = cfg.ami_call_timeout || 15;
-                document.getElementById('cfgDetectTimeout').value = cfg.ami_detect_timeout || 10;
-                document.getElementById('cfgCacheTtl').value = cfg.cache_ttl_hours || 168;
-                this._updateSimHelp();
+                simActive = !!cfg.ami_simulation;
+                updateBtn();
             }
         } catch (_) {}
 
-        document.getElementById('cfgSimulation').addEventListener('change', () => this._updateSimHelp());
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.saveAsteriskConfig();
-        });
-    }
-
-    _updateSimHelp() {
-        const help = document.getElementById('cfgSimulationHelp');
-        if (help) {
-            help.style.display = document.getElementById('cfgSimulation')?.checked ? 'block' : 'none';
-        }
-    }
-
-    async saveAsteriskConfig() {
-        const statusEl = document.getElementById('cfgSaveStatus');
-        const setStatus = (msg, ok = true) => {
-            if (statusEl) { statusEl.textContent = msg; statusEl.style.color = ok ? '#2a7' : '#c33'; }
-        };
-        setStatus('Enregistrement…');
-
-        const payload = {
-            ami_enabled: document.getElementById('cfgEnabled').checked,
-            ami_simulation: document.getElementById('cfgSimulation').checked,
-            ami_host: document.getElementById('cfgHost').value.trim() || '127.0.0.1',
-            ami_port: parseInt(document.getElementById('cfgPort').value) || 5038,
-            ami_username: document.getElementById('cfgUsername').value.trim() || 'admin',
-            ami_secret: document.getElementById('cfgSecret').value || '********',
-            ami_trunk: document.getElementById('cfgTrunk').value.trim(),
-            ami_context: document.getElementById('cfgContext').value.trim() || 'faxcloud-detect',
-            ami_call_timeout: parseInt(document.getElementById('cfgCallTimeout').value) || 15,
-            ami_detect_timeout: parseInt(document.getElementById('cfgDetectTimeout').value) || 10,
-            cache_ttl_hours: parseInt(document.getElementById('cfgCacheTtl').value) || 168,
-        };
-
-        try {
-            const res = await fetch('/api/asterisk/config', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (res.ok) {
-                setStatus('Configuration enregistrée.', true);
-            } else {
-                const err = await res.json().catch(() => ({}));
-                setStatus('Erreur: ' + (err.error || res.status), false);
+        btn.addEventListener('click', async () => {
+            simActive = !simActive;
+            updateBtn();
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/asterisk/config');
+                const cfg = res.ok ? await res.json() : {};
+                await fetch('/api/asterisk/config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...cfg, ami_simulation: simActive }),
+                });
+            } catch (_) {
+                simActive = !simActive;
+                updateBtn();
+            } finally {
+                btn.disabled = false;
             }
-        } catch (err) {
-            setStatus('Erreur réseau: ' + err.message, false);
-        }
+        });
     }
 
     async uploadFile(file) {
