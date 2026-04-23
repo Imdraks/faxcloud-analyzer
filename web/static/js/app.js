@@ -28,33 +28,32 @@ class FaxApp {
     }
 
     async initSimulationToggle() {
-        const btn = document.getElementById('btnSimulation');
-        const statusEl = document.getElementById('simStatus');
+        const btn = document.getElementById('btnSimToggle');
+        const label = document.getElementById('simToggleLabel');
         if (!btn) return;
 
         let simActive = false;
 
-        const updateBtn = () => {
-            btn.textContent = simActive ? 'Désactiver la simulation' : 'Activer la simulation';
-            btn.style.background = simActive ? '#c0392b' : '';
-            if (statusEl) statusEl.textContent = simActive
-                ? 'Mode simulation actif — les résultats sont générés automatiquement'
-                : '';
+        const updateToggle = () => {
+            const thumb = btn.querySelector('span');
+            btn.setAttribute('aria-pressed', simActive ? 'true' : 'false');
+            btn.style.background = simActive ? 'var(--c-text)' : 'var(--c-border)';
+            if (thumb) thumb.style.left = simActive ? '18px' : '2px';
+            if (label) label.textContent = simActive ? 'On' : 'Off';
         };
 
-        // Charger l'état courant
         try {
             const res = await fetch('/api/asterisk/config');
             if (res.ok) {
                 const cfg = await res.json();
                 simActive = !!cfg.ami_simulation;
-                updateBtn();
+                updateToggle();
             }
         } catch (_) {}
 
         btn.addEventListener('click', async () => {
             simActive = !simActive;
-            updateBtn();
+            updateToggle();
             btn.disabled = true;
             try {
                 const res = await fetch('/api/asterisk/config');
@@ -66,7 +65,7 @@ class FaxApp {
                 });
             } catch (_) {
                 simActive = !simActive;
-                updateBtn();
+                updateToggle();
             } finally {
                 btn.disabled = false;
             }

@@ -55,10 +55,19 @@
                         <input type="file" id="fileInput" accept=".csv,.xlsx" style="display: none;">
                     </div>
 
-                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.83rem; cursor: pointer; color: var(--c-muted); margin-bottom: 0.75rem;">
-                        <input type="checkbox" id="enableDetection">
-                        Détection Asterisk (peut être lent)
-                    </label>
+                    <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.83rem; cursor: pointer; color: var(--c-muted);">
+                            <input type="checkbox" id="enableDetection">
+                            Détection Asterisk (peut être lent)
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.83rem; color: var(--c-muted);">
+                            <span>Simulation</span>
+                            <button id="btnSimToggle" type="button" aria-pressed="false" style="position: relative; width: 36px; height: 20px; border-radius: 10px; border: 1px solid var(--c-border); background: var(--c-border); cursor: pointer; padding: 0; transition: background 0.2s;">
+                                <span style="position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left 0.2s; display: block;"></span>
+                            </button>
+                            <span id="simToggleLabel" style="font-size: 0.78rem;">Off</span>
+                        </div>
+                    </div>
 
                     <div id="uploadProgress" class="hidden">
                         <p id="uploadStatus" role="status" aria-live="polite" style="font-size: 0.83rem; color: var(--c-muted);"></p>
