@@ -238,4 +238,25 @@ class FaxApp {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => new FaxApp());
+function animateCounters() {
+    document.querySelectorAll('.stat-value').forEach(el => {
+        const text = el.textContent.trim();
+        const raw = text.replace(/\D/g, '');
+        const target = parseInt(raw, 10);
+        if (!raw || isNaN(target) || target === 0) return;
+        const isPercent = text.endsWith('%');
+        const duration = 700;
+        const start = performance.now();
+        el.textContent = isPercent ? '0%' : '0';
+        const tick = (now) => {
+            const t = Math.min((now - start) / duration, 1);
+            const ease = 1 - Math.pow(1 - t, 3);
+            const current = Math.round(target * ease);
+            el.textContent = isPercent ? `${current}%` : current.toLocaleString('fr-FR');
+            if (t < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => { new FaxApp(); animateCounters(); });

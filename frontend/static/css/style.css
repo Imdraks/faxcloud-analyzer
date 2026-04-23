@@ -229,7 +229,7 @@ html, body {
 }
 
 .btn:hover  { background: var(--c-primary-h); border-color: var(--c-primary-h); }
-.btn:active { opacity: 0.8; }
+.btn:active { opacity: 0.8; transform: scale(0.96); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-small  { padding: 0.35rem 0.7rem; font-size: 0.78rem; }
@@ -538,6 +538,7 @@ tr.row-invalid td:first-child { border-left: 2px solid var(--c-error); }
     margin-top: 0.65rem;
     border-width: 1px;
     border-style: solid;
+    animation: slideDown 0.22s ease-out;
 }
 
 .error   { background: var(--c-error-bg);   color: var(--c-error);   border-color: var(--c-error); }
@@ -621,6 +622,31 @@ tr.row-invalid td:first-child { border-left: 2px solid var(--c-error); }
     margin-bottom: 0.3rem;
 }
 
+.sidebar { animation: fadeIn 0.2s ease-out; }
+.topbar  { animation: fadeIn 0.22s ease-out 0.04s both; }
+.section { animation: fadeIn 0.26s ease-out both; }
+.section:nth-child(2) { animation-delay: 0.08s; }
+.section:nth-child(3) { animation-delay: 0.14s; }
+
+.stat-card { animation: fadeIn 0.28s ease-out both; }
+.stat-card:nth-child(1) { animation-delay: 0.10s; }
+.stat-card:nth-child(2) { animation-delay: 0.16s; }
+.stat-card:nth-child(3) { animation-delay: 0.22s; }
+.stat-card:nth-child(4) { animation-delay: 0.28s; }
+
+.report-item { animation: fadeIn 0.22s ease-out both; }
+.report-item:nth-child(2) { animation-delay: 0.05s; }
+.report-item:nth-child(3) { animation-delay: 0.10s; }
+.report-item:nth-child(4) { animation-delay: 0.15s; }
+.report-item:nth-child(5) { animation-delay: 0.20s; }
+.report-item:nth-child(6) { animation-delay: 0.25s; }
+
+.drag-drop-zone.drag-over { animation: pulseZone 0.9s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
 @keyframes shimmer {
     0%   { background-position: 200% 0; }
     100% { background-position: -200% 0; }
@@ -633,6 +659,16 @@ tr.row-invalid td:first-child { border-left: 2px solid var(--c-error); }
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(5px); }
     to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseZone {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.012); }
 }
 
 @media (max-width: 768px) {
