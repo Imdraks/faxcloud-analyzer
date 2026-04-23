@@ -30,7 +30,7 @@ __description__ = "Analyseur intelligent pour exports FaxCloud"
 RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", 120))
 RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", 60))  # seconds
 
-from src.core import (
+from core import (
     analyze_data,
     generate_report,
     get_all_reports,
@@ -39,8 +39,8 @@ from src.core import (
     insert_report_to_db,
     settings,
 )
-from src.core.config import configure_logging, ensure_directories
-from src.core.db import (
+from core.config import configure_logging, ensure_directories
+from core.db import (
     delete_report,
     get_dashboard_stats,
     get_report_by_id,
@@ -48,7 +48,7 @@ from src.core.db import (
     get_report_summary_by_id,
     insert_audit_event,
 )
-from src.core.asterisk import (
+from core.asterisk import (
     init_asterisk_tables,
     get_sda_ranges,
     add_sda_range,
@@ -135,7 +135,7 @@ def create_app() -> Flask:
 
     configure_logging()
 
-    web_dir = settings.base_dir / "web"
+    web_dir = settings.base_dir / "frontend"
     templates_dir = web_dir / "templates"
     static_dir = web_dir / "static"
     app = Flask(
@@ -761,7 +761,7 @@ def create_app() -> Flask:
             return {"error": "Fournir 'numero' ou 'numeros'"}, 400
 
         engine = get_asterisk_engine()
-        from src.core.analyzer import normalize_number
+        from core.analyzer import normalize_number
         results = []
         for n in numeros:
             normalise = normalize_number(n)
@@ -817,7 +817,7 @@ def create_app() -> Flask:
             return {"error": "Fournir 'numero' ou 'numeros'"}, 400
 
         engine = get_asterisk_engine()
-        from src.core.analyzer import normalize_number
+        from core.analyzer import normalize_number
 
         if len(numeros) == 1:
             normalise = normalize_number(numeros[0])
@@ -840,7 +840,7 @@ def create_app() -> Flask:
         """Détecte la tonalité fax pour un numéro donné (GET)."""
         force = request.args.get("force", "0") == "1"
         engine = get_asterisk_engine()
-        from src.core.analyzer import normalize_number
+        from core.analyzer import normalize_number
         normalise = normalize_number(numero)
         result = engine.detect_tone(normalise, force=force)
         result["numero_original"] = numero
@@ -1159,3 +1159,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -5,7 +5,7 @@ import json
 import logging
 from pathlib import Path
 
-from src.core import (
+from core import (
     analyze_data,
     generate_report,
     get_all_reports,
@@ -17,7 +17,7 @@ from src.core import (
     set_debug_mode,
     settings,
 )
-from src.core.config import configure_logging, ensure_directories
+from core.config import configure_logging, ensure_directories
 
 
 def cmd_init(args: argparse.Namespace) -> None:

@@ -35,7 +35,7 @@ def _build_settings() -> Settings:
         # Running as a packaged executable (PyInstaller): keep data next to the EXE.
         project_root = Path(sys.executable).resolve().parent
     else:
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = Path(__file__).resolve().parents[1]
     data_dir = project_root / "data"
     return Settings(
         base_dir=project_root,
