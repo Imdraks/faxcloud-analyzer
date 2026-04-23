@@ -77,8 +77,7 @@ class FaxApp {
 
         const formData = new FormData();
         formData.append('file', file);
-        
-        // Ajoute les paramètres d'analyse
+
         const enableDetection = document.getElementById('enableDetection');
         if (enableDetection && enableDetection.checked) {
             formData.append('enable_detection', 'true');
@@ -133,7 +132,6 @@ class FaxApp {
             const message = data.message || '';
             const backendPercent = Number.isFinite(data.percent) ? data.percent : 0;
 
-            // Map backend 0..100 to overall 35..100 (upload is 0..35)
             const overall = 35 + (backendPercent * 0.65);
             setPercent(overall);
 
@@ -164,7 +162,7 @@ class FaxApp {
                     const data = await res.json();
                     applyProgressPayload(data);
                 } catch (err) {
-                    // Keep polling briefly; errors can be transient.
+
                 }
             }, 750);
         };
@@ -181,17 +179,16 @@ class FaxApp {
                     lastProgressAt = Date.now();
                     applyProgressPayload(data);
                 } catch (err) {
-                    // If SSE payload breaks, fall back to polling.
+
                     startPolling(uploadId);
                 }
             });
 
             evt.addEventListener('error', () => {
-                // Best-effort: SSE may fail due to proxies; fall back to polling.
+
                 startPolling(uploadId);
             });
 
-            // If SSE is connected but no events come through, fall back to polling.
             window.setTimeout(() => {
                 if (!evt) return;
                 if (Date.now() - lastProgressAt > 2000) {

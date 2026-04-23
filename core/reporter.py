@@ -11,17 +11,15 @@ from .config import settings, ensure_directories
 
 logger = logging.getLogger(__name__)
 
-
 def generate_qr_code(report_id: str, base_url: Optional[str] = None) -> str:
     ensure_directories()
     base_url = base_url or settings.default_base_url
-    url = f"{base_url}/{report_id}"
+    url = f"{base_url}/{report_id}/pdf"
     qr_path = settings.reports_qr_dir / f"{report_id}.png"
     img = qrcode.make(url)
     img.save(qr_path)
     logger.info("QR code généré: %s", qr_path)
     return str(qr_path)
-
 
 def _write_report(report: Dict) -> str:
     ensure_directories()
@@ -31,7 +29,6 @@ def _write_report(report: Dict) -> str:
     logger.info("Rapport sauvegardé: %s", path)
     return str(path)
 
-
 def generate_report(analysis: Dict, include_qr: bool = True) -> Dict:
     report = dict(analysis)
     qr_path = generate_qr_code(report["report_id"]) if include_qr else None
@@ -39,7 +36,6 @@ def generate_report(analysis: Dict, include_qr: bool = True) -> Dict:
     report["url_rapport"] = f"{settings.default_base_url}/{report['report_id']}"
     _write_report(report)
     return report
-
 
 def list_report_files() -> List[str]:
     ensure_directories()

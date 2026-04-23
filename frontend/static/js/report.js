@@ -60,20 +60,17 @@ class ReportEntries {
       if (e.key === 'Enter') this.applyFilters();
     });
 
-    // Debounced search
     this.searchInput?.addEventListener('input', () => {
       if (this._searchDebounceTimer) window.clearTimeout(this._searchDebounceTimer);
       this._searchDebounceTimer = window.setTimeout(() => this.applyFilters(), 300);
     });
 
-    // Auto-apply on most inputs
     this.typeFilter?.addEventListener('change', () => this.applyFilters());
     this.validFilter?.addEventListener('change', () => this.applyFilters());
     this.dateFromInput?.addEventListener('change', () => this.applyFilters());
     this.dateToInput?.addEventListener('change', () => this.applyFilters());
     this.orderSelect?.addEventListener('change', () => this.applyFilters());
 
-    // Restore state from URL (filters + page)
     this.restoreFromUrl();
   }
 
@@ -247,7 +244,7 @@ class ReportEntries {
     for (const r of rows) {
       const tr = document.createElement('tr');
       if (!r.valide) tr.classList.add('row-invalid');
-      
+
       let html = `
         <td>${escapeHtml(r.datetime)}</td>
         <td>${escapeHtml(r.type)}</td>
@@ -257,7 +254,7 @@ class ReportEntries {
         <td>${escapeHtml(r.numero_type_label || '—')}</td>
         <td>${r.valide ? '✓' : '✗'}</td>
       `;
-      
+
       if (this.hasAsteriskDetection && r.asterisk_detected) {
         html += `
         <td>${escapeHtml(r.asterisk_tone || '—')}</td>
@@ -271,7 +268,7 @@ class ReportEntries {
         <td>—</td>
         `;
       }
-      
+
       tr.innerHTML = html;
       fragment.appendChild(tr);
     }
@@ -354,7 +351,7 @@ class ReportEntries {
       this.renderPagination();
     } catch (e) {
       if (e?.name === 'AbortError') {
-        // A newer request replaced this one.
+
         return;
       }
       this.setStatus(`Erreur: ${e.message}`);

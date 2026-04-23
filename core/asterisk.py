@@ -42,10 +42,6 @@ from .config import settings, ensure_directories
 
 logger = logging.getLogger(__name__)
 
-# ──────────────────────────────────────────────
-# Types de numéros
-# ──────────────────────────────────────────────
-
 NUMBER_TYPE_SDA_FAX = "sda_fax"
 NUMBER_TYPE_SDA = "sda"
 NUMBER_TYPE_PHONE = "phone"
@@ -59,7 +55,6 @@ NUMBER_TYPE_NO_ANSWER = "no_answer"
 NUMBER_TYPE_BUSY = "busy"
 NUMBER_TYPE_ERROR = "error"
 
-# Labels français
 NUMBER_TYPE_LABELS = {
     NUMBER_TYPE_SDA_FAX: "SDA Fax (tonalité détectée)",
     NUMBER_TYPE_SDA: "SDA (Interne PBX)",
@@ -75,18 +70,12 @@ NUMBER_TYPE_LABELS = {
     NUMBER_TYPE_ERROR: "Erreur d'appel",
 }
 
-# Résultats de détection de tonalité
 TONE_FAX = "fax"
 TONE_VOICE = "voice"
 TONE_NO_ANSWER = "no_answer"
 TONE_BUSY = "busy"
 TONE_ERROR = "error"
 TONE_UNKNOWN = "unknown"
-
-
-# ──────────────────────────────────────────────
-# Configuration AMI
-# ──────────────────────────────────────────────
 
 @dataclass
 class AMIConfig:
@@ -96,35 +85,29 @@ class AMIConfig:
     username: str = "admin"
     secret: str = ""
     enabled: bool = False
-    context: str = "faxcloud-detect"   # Contexte dialplan pour détection fax
-    caller_id: str = "FaxCloudTest"    # CallerID pour les appels test
-    call_timeout: int = 15             # Timeout appel test (secondes)
-    detect_timeout: int = 10           # Temps d'écoute de la tonalité après décrochage
-    trunk: str = ""                    # Trunk SIP à utiliser (ex: "PJSIP/trunk-orange")
-    cache_ttl_hours: int = 24 * 7     # Durée de validité du cache (7 jours)
-    simulation: bool = False           # Mode simulation (sans appels réels)
-
+    context: str = "faxcloud-detect"
+    caller_id: str = "FaxCloudTest"
+    call_timeout: int = 15
+    detect_timeout: int = 10
+    trunk: str = ""
+    cache_ttl_hours: int = 24 * 7
+    simulation: bool = False
 
 @dataclass
 class SDARange:
     """Plage de numéros SDA."""
     id: str = ""
     label: str = ""
-    prefix: str = ""          # Ex: "33493" pour les numéros CHU Nice
-    range_start: str = ""     # Ex: "0000"
-    range_end: str = ""       # Ex: "9999"
-    site: str = ""            # Ex: "CHU Nice"
+    prefix: str = ""
+    range_start: str = ""
+    range_end: str = ""
+    site: str = ""
     description: str = ""
-
-
-# ──────────────────────────────────────────────
-# Connexion AMI
-# ──────────────────────────────────────────────
 
 class AMIConnection:
     """
     Client AMI (Asterisk Manager Interface) avec détection de tonalité fax.
-    
+
     Fonctionnement de la détection :
       1. Originate un appel vers le numéro cible
       2. L'appel entre dans le contexte 'faxcloud-detect' du dialplan
@@ -225,11 +208,11 @@ class AMIConnection:
         """Lit les événements AMI pendant `timeout` secondes."""
         if not self._socket:
             return []
-        
+
         events = []
         deadline = time.time() + timeout
         buffer = ""
-        
+
         while time.time() < deadline:
             remaining = max(0.1, deadline - time.time())
             self._socket.settimeout(min(remaining, 1.0))
@@ -238,18 +221,17 @@ class AMIConnection:
                 if not chunk:
                     break
                 buffer += chunk
-                
-                # Parser les événements (séparés par \r\n\r\n)
+
                 while "\r\n\r\n" in buffer:
                     event_str, buffer = buffer.split("\r\n\r\n", 1)
                     event = self._parse_event(event_str)
                     if event:
-                        # Filtrer par channel/actionid si demandé
+
                         if channel_filter:
-                            # Vérifier ActionID d'abord
+
                             aid = event.get("ActionID", "")
                             if aid == channel_filter:
-                                pass  # Match par ActionID
+                                pass
                             else:
                                 ch = event.get("Channel", event.get("channel", ""))
                                 uid = event.get("Uniqueid", "")
@@ -257,23 +239,21 @@ class AMIConnection:
                                         and channel_filter not in uid):
                                     continue
                         events.append(event)
-                        
-                        # Conditions d'arrêt anticipé
+
                         event_name = event.get("Event", "")
                         if event_name == "Hangup":
                             return events
-                        
-                        # Variable fax détectée
+
                         var_name = event.get("Variable", "")
                         if var_name in ("AMDSTATUS", "FAXDETECTED", "FAXDETECT"):
-                            # Continuer un peu pour récupérer AMDCAUSE
+
                             deadline = min(deadline, time.time() + 2)
-                            
+
             except socket.timeout:
                 continue
             except (socket.error, OSError):
                 break
-        
+
         return events
 
     @staticmethod
@@ -291,7 +271,7 @@ class AMIConnection:
     def detect_fax_tone(self, numero: str) -> Dict:
         """
         Appelle un numéro et détecte si c'est un fax via la tonalité.
-        
+
         Retourne:
           {
             "numero": "33493095562",
@@ -307,9 +287,7 @@ class AMIConnection:
             return self._error_result(numero, "AMI non connecté")
 
         action_id = self._next_action_id()
-        
-        # Construire le numéro à appeler
-        # Si un trunk est configuré, l'utiliser. Sinon, passer par le contexte.
+
         if self.config.trunk:
             channel = f"{self.config.trunk}/{numero}"
         else:
@@ -318,8 +296,6 @@ class AMIConnection:
         logger.info("Détection fax: appel de %s (ActionID: %s)", numero, action_id)
         start_time = time.time()
 
-        # Originate : appeler le numéro et le connecter au contexte de détection
-        # L'extension 'detect' dans le contexte faxcloud-detect exécutera AMD()
         self._send(
             f"Action: Originate\r\n"
             f"ActionID: {action_id}\r\n"
@@ -334,7 +310,6 @@ class AMIConnection:
             f"\r\n"
         )
 
-        # Lire la réponse initiale de l'Originate
         initial = self._recv()
         if "Error" in initial:
             error_msg = "Originate refusé"
@@ -343,18 +318,16 @@ class AMIConnection:
                     error_msg = line.split(":", 1)[1].strip()
             return self._error_result(numero, error_msg)
 
-        # Écouter les événements pendant la durée de l'appel + détection
         total_timeout = self.config.call_timeout + self.config.detect_timeout + 5
         events = self._read_events(total_timeout, channel_filter=action_id)
 
         duration_ms = int((time.time() - start_time) * 1000)
 
-        # Analyser les événements pour déterminer le résultat
         return self._analyze_events(numero, events, duration_ms)
 
     def _analyze_events(self, numero: str, events: List[Dict], duration_ms: int) -> Dict:
         """Analyse les événements AMI pour déterminer si c'est un fax."""
-        
+
         tone = TONE_UNKNOWN
         details = ""
         hangup_cause = 0
@@ -364,12 +337,11 @@ class AMIConnection:
 
         for event in events:
             event_name = event.get("Event", "")
-            
-            # Détection AMD
+
             if event_name == "ChannelVarSet" or event_name == "VarSet":
                 var_name = event.get("Variable", "")
                 var_value = event.get("Value", "")
-                
+
                 if var_name == "AMDSTATUS":
                     amd_status = var_value
                 elif var_name == "AMDCAUSE":
@@ -381,11 +353,9 @@ class AMIConnection:
                     if var_value in ("detect", "gateway"):
                         fax_detected = True
 
-            # Événement de détection fax spécifique
             if event_name in ("FAXStatus", "ReceiveFAXStatus", "SendFAXStatus"):
                 fax_detected = True
 
-            # Hangup
             if event_name == "Hangup":
                 cause = event.get("Cause", "0")
                 try:
@@ -393,7 +363,6 @@ class AMIConnection:
                 except (ValueError, TypeError):
                     hangup_cause = 0
 
-        # Déterminer le résultat final
         if fax_detected:
             tone = TONE_FAX
             details = "Tonalité fax détectée (CNG/CED)"
@@ -401,7 +370,7 @@ class AMIConnection:
             tone = TONE_FAX
             details = f"AMD: tonalité fax ({amd_cause})"
         elif amd_status.upper() == "MACHINE":
-            # Machine mais pas fax = répondeur
+
             tone = TONE_VOICE
             details = f"Répondeur détecté ({amd_cause})"
         elif amd_status.upper() == "HUMAN":
@@ -423,7 +392,7 @@ class AMIConnection:
             tone = TONE_ERROR
             details = f"Erreur réseau (cause {hangup_cause})"
         elif hangup_cause == 16:
-            # Raccrochage normal sans détection = probablement voix
+
             if not amd_status:
                 tone = TONE_UNKNOWN
                 details = "Appel terminé sans détection"
@@ -498,17 +467,11 @@ class AMIConnection:
                 current[key.strip()] = val.strip()
         return items
 
-
-# ──────────────────────────────────────────────
-# Base de données SDA
-# ──────────────────────────────────────────────
-
 def _connect_db() -> sqlite3.Connection:
     ensure_directories()
     conn = sqlite3.connect(settings.database_path)
     conn.row_factory = sqlite3.Row
     return conn
-
 
 def init_asterisk_tables() -> None:
     """Crée les tables pour la configuration Asterisk/SDA."""
@@ -547,7 +510,6 @@ def init_asterisk_tables() -> None:
         )
     """)
 
-    # Cache des résultats de détection de tonalité
     cur.execute("""
         CREATE TABLE IF NOT EXISTS tone_detection_cache (
             numero TEXT PRIMARY KEY,
@@ -563,7 +525,6 @@ def init_asterisk_tables() -> None:
         )
     """)
 
-    # Ajout de la colonne numero_type aux fax_entries (migration)
     for stmt in (
         "ALTER TABLE fax_entries ADD COLUMN numero_type TEXT DEFAULT 'unknown'",
         "ALTER TABLE fax_entries ADD COLUMN numero_type_label TEXT DEFAULT ''",
@@ -573,7 +534,6 @@ def init_asterisk_tables() -> None:
         except sqlite3.OperationalError:
             pass
 
-    # Migration: nouvelles colonnes asterisk_config
     for stmt in (
         "ALTER TABLE asterisk_config ADD COLUMN ami_context TEXT DEFAULT 'faxcloud-detect'",
         "ALTER TABLE asterisk_config ADD COLUMN ami_caller_id TEXT DEFAULT 'FaxCloudTest'",
@@ -593,11 +553,6 @@ def init_asterisk_tables() -> None:
     conn.close()
     logger.info("Tables Asterisk initialisées")
 
-
-# ──────────────────────────────────────────────
-# CRUD Plages SDA
-# ──────────────────────────────────────────────
-
 def get_sda_ranges() -> List[Dict]:
     conn = _connect_db()
     cur = conn.cursor()
@@ -605,7 +560,6 @@ def get_sda_ranges() -> List[Dict]:
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
-
 
 def add_sda_range(label: str, prefix: str, range_start: str = "", range_end: str = "",
                   site: str = "", description: str = "") -> Dict:
@@ -627,7 +581,6 @@ def add_sda_range(label: str, prefix: str, range_start: str = "", range_end: str
     return {"id": row_id, "label": label, "prefix": prefix, "range_start": range_start,
             "range_end": range_end, "site": site, "description": description}
 
-
 def update_sda_range(range_id: int, **kwargs) -> bool:
     from datetime import datetime, timezone
     allowed = {"label", "prefix", "range_start", "range_end", "site", "description"}
@@ -645,7 +598,6 @@ def update_sda_range(range_id: int, **kwargs) -> bool:
     conn.close()
     return changed
 
-
 def delete_sda_range(range_id: int) -> bool:
     conn = _connect_db()
     cur = conn.cursor()
@@ -655,11 +607,6 @@ def delete_sda_range(range_id: int) -> bool:
     conn.close()
     return changed
 
-
-# ──────────────────────────────────────────────
-# Configuration AMI (CRUD)
-# ──────────────────────────────────────────────
-
 def get_ami_config() -> Dict:
     conn = _connect_db()
     cur = conn.cursor()
@@ -668,7 +615,7 @@ def get_ami_config() -> Dict:
     conn.close()
     if row:
         config = dict(row)
-        # Surcharge par variable d'environnement Docker (ASTERISK_HOST / ASTERISK_PORT)
+
         env_host = os.environ.get("ASTERISK_HOST")
         env_port = os.environ.get("ASTERISK_PORT")
         if env_host:
@@ -684,7 +631,6 @@ def get_ami_config() -> Dict:
             "ami_detect_timeout": 10, "ami_trunk": "", "cache_ttl_hours": 168,
             "ami_simulation": 0}
 
-
 def save_ami_config(host: str, port: int, username: str, secret: str, enabled: bool,
                     context: str = "faxcloud-detect", caller_id: str = "FaxCloudTest",
                     call_timeout: int = 15, detect_timeout: int = 10,
@@ -695,7 +641,7 @@ def save_ami_config(host: str, port: int, username: str, secret: str, enabled: b
     now = datetime.now(timezone.utc).isoformat()
     cur.execute(
         """
-        INSERT OR REPLACE INTO asterisk_config 
+        INSERT OR REPLACE INTO asterisk_config
         (id, ami_host, ami_port, ami_username, ami_secret, ami_enabled,
          ami_context, ami_caller_id, ami_call_timeout, ami_detect_timeout,
          ami_trunk, cache_ttl_hours, ami_simulation, updated_at)
@@ -707,11 +653,6 @@ def save_ami_config(host: str, port: int, username: str, secret: str, enabled: b
     )
     conn.commit()
     conn.close()
-
-
-# ──────────────────────────────────────────────
-# Cache de détection de tonalité
-# ──────────────────────────────────────────────
 
 def get_cached_tone(numero: str) -> Optional[Dict]:
     """Retourne le résultat en cache si valide, sinon None."""
@@ -725,7 +666,6 @@ def get_cached_tone(numero: str) -> Optional[Dict]:
     row = cur.fetchone()
     conn.close()
     return dict(row) if row else None
-
 
 def save_tone_cache(result: Dict, ttl_hours: int = 168) -> None:
     """Sauvegarde un résultat de détection en cache."""
@@ -756,7 +696,6 @@ def save_tone_cache(result: Dict, ttl_hours: int = 168) -> None:
     conn.commit()
     conn.close()
 
-
 def get_all_cached_tones() -> List[Dict]:
     """Retourne tous les résultats en cache (même expirés)."""
     conn = _connect_db()
@@ -765,7 +704,6 @@ def get_all_cached_tones() -> List[Dict]:
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
-
 
 def clear_tone_cache(numero: Optional[str] = None) -> int:
     """Supprime le cache (un numéro ou tout)."""
@@ -780,15 +718,10 @@ def clear_tone_cache(numero: Optional[str] = None) -> int:
     conn.close()
     return count
 
-
-# ──────────────────────────────────────────────
-# Moteur de classification
-# ──────────────────────────────────────────────
-
 class AsteriskEngine:
     """
     Moteur de classification des numéros de fax.
-    
+
     Priorité de classification :
       1. Cache BDD : résultat d'un appel test précédent
       2. Plages SDA manuelles : préfixes configurés
@@ -822,7 +755,6 @@ class AsteriskEngine:
             simulation=bool(config.get("ami_simulation", 0)),
         )
 
-        # Si AMI activé, récupérer les peers
         if self._ami_config.enabled:
             self._load_ami_peers()
 
@@ -857,11 +789,11 @@ class AsteriskEngine:
     def detect_tone(self, numero: str, force: bool = False) -> Dict:
         """
         Appelle un numéro et détecte la tonalité fax.
-        
+
         Args:
             numero: Numéro normalisé (33XXXXXXXXX)
             force: Ignorer le cache et refaire l'appel
-            
+
         Returns:
             Résultat de détection avec tone, is_fax, details, etc.
         """
@@ -871,7 +803,6 @@ class AsteriskEngine:
         if not self._ami_config or not self._ami_config.enabled:
             return AMIConnection._error_result(numero, "AMI non activé")
 
-        # Vérifier le cache
         if not force:
             cached = get_cached_tone(numero)
             if cached:
@@ -879,11 +810,9 @@ class AsteriskEngine:
                 cached["from_cache"] = True
                 return cached
 
-        # Mode simulation : résultat synthétique sans appel réel
         if self._ami_config.simulation:
             return self._simulate_tone(numero)
 
-        # Appel test
         ami = AMIConnection(self._ami_config)
         if not ami.connect():
             return AMIConnection._error_result(numero, "Impossible de se connecter à Asterisk")
@@ -893,7 +822,6 @@ class AsteriskEngine:
         finally:
             ami.disconnect()
 
-        # Sauvegarder en cache
         if result.get("tone") != TONE_ERROR:
             save_tone_cache(result, self._ami_config.cache_ttl_hours)
 
@@ -902,7 +830,7 @@ class AsteriskEngine:
 
     def _simulate_tone(self, numero: str) -> Dict:
         """Retourne un résultat simulé sans appel réel selon le type du numéro."""
-        # Classifier le numéro par préfixe pour deviner le type attendu
+
         num_type, _ = self.classify_number(numero)
 
         if num_type in (NUMBER_TYPE_SDA, NUMBER_TYPE_SDA_FAX):
@@ -921,7 +849,7 @@ class AsteriskEngine:
             tone, is_fax = TONE_NO_ANSWER, False
             details = "[SIM] No answer (unknown/special number)"
 
-        time.sleep(0.05)  # Simuler un léger délai réseau
+        time.sleep(0.05)
 
         result = {
             "numero": numero,
@@ -941,14 +869,14 @@ class AsteriskEngine:
         """
         Détecte la tonalité pour une liste de numéros.
         Appelle un par un pour ne pas surcharger le PBX.
-        
+
         Args:
             numeros: Liste de numéros normalisés
             force: Ignorer le cache
             on_progress: Callback(index, total, result) optionnel
         """
         results = []
-        unique_numeros = list(dict.fromkeys(numeros))  # Déduplique en gardant l'ordre
+        unique_numeros = list(dict.fromkeys(numeros))
         total = len(unique_numeros)
 
         for i, numero in enumerate(unique_numeros):
@@ -958,7 +886,6 @@ class AsteriskEngine:
             if on_progress:
                 on_progress(i + 1, total, result)
 
-            # Pause entre les appels pour ne pas surcharger
             if i < total - 1 and not result.get("from_cache"):
                 time.sleep(2)
 
@@ -967,7 +894,7 @@ class AsteriskEngine:
     def classify_number(self, numero_normalise: str) -> Tuple[str, str]:
         """
         Classifie un numéro normalisé (format 33XXXXXXXXX).
-        
+
         Priorité :
           1. Cache de détection de tonalité (résultat d'appel réel)
           2. Plages SDA manuelles
@@ -980,20 +907,16 @@ class AsteriskEngine:
         if not numero_normalise or len(numero_normalise) < 4:
             return NUMBER_TYPE_UNKNOWN, NUMBER_TYPE_LABELS[NUMBER_TYPE_UNKNOWN]
 
-        # 1. Vérifier le cache de détection de tonalité
         cached = get_cached_tone(numero_normalise)
         if cached:
             return self._tone_to_type(cached.get("tone", ""), cached.get("is_fax", False))
 
-        # 2. Vérifier dans les plages SDA configurées
         if self._is_sda_by_range(numero_normalise):
             return NUMBER_TYPE_SDA, NUMBER_TYPE_LABELS[NUMBER_TYPE_SDA]
 
-        # 3. Vérifier dans les peers AMI
         if self._is_sda_by_ami(numero_normalise):
             return NUMBER_TYPE_SDA, NUMBER_TYPE_LABELS[NUMBER_TYPE_SDA]
 
-        # 4. Classification par préfixe français
         return self._classify_french_number(numero_normalise)
 
     @staticmethod
@@ -1021,19 +944,16 @@ class AsteriskEngine:
             if not numero.startswith(prefix):
                 continue
 
-            # Si pas de range défini, le prefix seul suffit
             range_start = sda.get("range_start", "")
             range_end = sda.get("range_end", "")
 
             if not range_start and not range_end:
                 return True
 
-            # Extraire la partie après le préfixe
             suffix = numero[len(prefix):]
             if not suffix:
                 return True
 
-            # Comparer avec la plage
             if range_start and range_end:
                 try:
                     s = int(suffix.ljust(len(range_start), '0'))
@@ -1053,7 +973,7 @@ class AsteriskEngine:
         """Vérifie si le numéro correspond à un peer Asterisk."""
         if not self._ami_peers:
             return False
-        # Comparaison directe et avec préfixe 33
+
         for peer in self._ami_peers:
             if numero == peer or numero.endswith(peer) or peer.endswith(numero[-9:]):
                 return True
@@ -1065,27 +985,22 @@ class AsteriskEngine:
         if not numero.startswith("33"):
             return NUMBER_TYPE_INTERNATIONAL, NUMBER_TYPE_LABELS[NUMBER_TYPE_INTERNATIONAL]
 
-        # Numéro français sans le 33 : 9 chiffres
-        local = numero[2:]  # ex: "493095562"
+        local = numero[2:]
 
         if not local:
             return NUMBER_TYPE_UNKNOWN, NUMBER_TYPE_LABELS[NUMBER_TYPE_UNKNOWN]
 
         first_digit = local[0]
 
-        # Numéros courts (3xxx, 10xx, 11x, etc.)
         if len(local) <= 6:
             return NUMBER_TYPE_SHORT, NUMBER_TYPE_LABELS[NUMBER_TYPE_SHORT]
 
-        # Mobile : 06, 07
         if first_digit in ("6", "7"):
             return NUMBER_TYPE_MOBILE, NUMBER_TYPE_LABELS[NUMBER_TYPE_MOBILE]
 
-        # Spécial : 08
         if first_digit == "8":
             return NUMBER_TYPE_SPECIAL, NUMBER_TYPE_LABELS[NUMBER_TYPE_SPECIAL]
 
-        # Géographique : 01-05, 09
         if first_digit in ("1", "2", "3", "4", "5", "9"):
             return NUMBER_TYPE_GEOGRAPHIC, NUMBER_TYPE_LABELS[NUMBER_TYPE_GEOGRAPHIC]
 
@@ -1094,7 +1009,7 @@ class AsteriskEngine:
     def classify_entries(self, entries: List[Dict]) -> List[Dict]:
         """
         Enrichit une liste d'entrées fax avec le type de numéro.
-        
+
         Ajoute les champs:
           - numero_type: code du type (sda, geographic, mobile, etc.)
           - numero_type_label: label français
@@ -1113,29 +1028,27 @@ class AsteriskEngine:
     def classify_entries_with_asterisk_detection(self, entries: List[Dict], enable_detection: bool = False) -> List[Dict]:
         """
         Enrichit les entrées avec détection Asterisk réelle (optional).
-        
+
         Si enable_detection=True et AMI activé :
           - Appelle Asterisk pour chaque numéro unique
           - Ajoute : asterisk_tone, asterisk_is_fax, asterisk_duration_ms, asterisk_hangup_cause
           - Classifie basé sur le résultat de détection
-        
+
         Si enable_detection=False :
           - Classifie par la méthode standard (cache + plages SDA + préfixe)
-        
+
         Args:
             entries: Liste des entrées à classifier
             enable_detection: Activer la détection Asterisk réelle
-        
+
         Returns:
             Entries enrichies avec numero_type, numero_type_label et optionnellement asterisk_*
         """
         if not self._loaded:
             self.load()
 
-        # Phase 1 : Classification standard (rapide)
         entries = self.classify_entries(entries)
-        
-        # Phase 2 : Détection Asterisk si activée
+
         if not enable_detection:
             return entries
 
@@ -1143,23 +1056,21 @@ class AsteriskEngine:
             logger.info("Détection Asterisk ignorée: AMI désactivé ou non configuré")
             return entries
 
-        # Déduplique les numéros à analyser
         unique_numeros = {}
         for entry in entries:
             numero = entry.get("numero_normalise", "")
             if numero and numero not in unique_numeros:
                 unique_numeros[numero] = True
-        
+
         logger.info(
             "Détection Asterisk en temps réel: %d numéros uniques sur %d entrées",
             len(unique_numeros), len(entries),
         )
 
-        # Détecte chaque numéro unique en parallèle (max 10 appels simultanés)
         detection_results = {}
         consecutive_connection_failures = 0
-        _MAX_CONN_FAILURES = 3  # Abandon si l'AMI est inaccessible
-        _MAX_WORKERS = 10       # Appels simultanés vers Asterisk
+        _MAX_CONN_FAILURES = 3
+        _MAX_WORKERS = 10
 
         numeros_list = list(unique_numeros.keys())
         total_unique = len(numeros_list)
@@ -1200,22 +1111,19 @@ class AsteriskEngine:
                 completed = len(detection_results)
                 logger.debug("Détection %d/%d: %s → %s (fax=%s)",
                             completed, total_unique, numero, result.get("tone"), result.get("is_fax"))
-        
-        # Phase 3 : Enrichit les entrées avec les résultats
+
         for entry in entries:
             numero = entry.get("numero_normalise", "")
             if numero in detection_results:
                 result = detection_results[numero]
-                
-                # Ajoute les champs Asterisk
+
                 entry["asterisk_tone"] = result.get("tone", "")
                 entry["asterisk_is_fax"] = result.get("is_fax", False)
                 entry["asterisk_duration_ms"] = result.get("duration_ms", 0)
                 entry["asterisk_hangup_cause"] = result.get("hangup_cause", 0)
                 entry["asterisk_amd_status"] = result.get("amd_status", "")
                 entry["asterisk_detected"] = True
-                
-                # Reclassifie si Asterisk a donné un résultat valide
+
                 if result.get("tone") and result.get("tone") != "error":
                     num_type, num_label = self._tone_to_type(result.get("tone", ""), result.get("is_fax", False))
                     entry["numero_type"] = num_type
@@ -1226,7 +1134,7 @@ class AsteriskEngine:
             else:
                 entry["asterisk_detected"] = False
                 entry["numero_type_source"] = "cache_or_prefix"
-        
+
         logger.info("Détection Asterisk complétée: %d numéros analysés", len(detection_results))
         return entries
 
@@ -1284,13 +1192,7 @@ class AsteriskEngine:
 
         return stats
 
-
-# ──────────────────────────────────────────────
-# Instance globale
-# ──────────────────────────────────────────────
-
 _engine: Optional[AsteriskEngine] = None
-
 
 def get_engine() -> AsteriskEngine:
     global _engine
@@ -1299,17 +1201,11 @@ def get_engine() -> AsteriskEngine:
         _engine.load()
     return _engine
 
-
 def reload_engine() -> AsteriskEngine:
     global _engine
     _engine = AsteriskEngine()
     _engine.load()
     return _engine
-
-
-# ──────────────────────────────────────────────
-# Dialplan Asterisk (snippet à copier dans extensions.conf)
-# ──────────────────────────────────────────────
 
 DIALPLAN_SNIPPET = """
 ; ==============================================
@@ -1326,7 +1222,7 @@ exten => detect,1,Answer()
  same => n,AMD(2500,2000,2500,3000,1100,256,25,3)
  ; Paramètres AMD :
  ;   initial_silence=2500ms
- ;   greeting=2000ms  
+ ;   greeting=2000ms
  ;   after_greeting_silence=2500ms
  ;   total_analysis_time=3000ms
  ;   min_word_length=1100ms (détecte CNG comme "mot long")
@@ -1354,8 +1250,6 @@ exten => _X.,1,Goto(detect,1)
 exten => h,1,NoOp(Appel terminé - AMDSTATUS=${AMDSTATUS} FAXDETECTED=${FAXDETECTED})
 """
 
-
 def get_dialplan_snippet() -> str:
     """Retourne le snippet de dialplan Asterisk à configurer."""
     return DIALPLAN_SNIPPET.strip()
-

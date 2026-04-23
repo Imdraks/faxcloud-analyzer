@@ -51,6 +51,7 @@ services:
       - PYTHONUNBUFFERED=1
       - ASTERISK_HOST=asterisk
       - ASTERISK_PORT=5038
+      - BASE_URL=https://metalinguistic-taren-unwise.ngrok-free.dev/report
     volumes:
       - ./data:/app/data
       - ./database:/app/database

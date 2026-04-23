@@ -9,13 +9,11 @@ from typing import Dict, List, Optional, Tuple
 
 from .config import settings, ensure_directories
 
-
 def _connect() -> sqlite3.Connection:
     ensure_directories()
     conn = sqlite3.connect(settings.database_path)
     conn.row_factory = sqlite3.Row
     return conn
-
 
 def init_database() -> None:
     ensure_directories()
@@ -64,7 +62,6 @@ def init_database() -> None:
     )
     conn.commit()
 
-    # Audit log (traçabilité des actions: import/export/suppression, etc.)
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS audit_log (
@@ -81,8 +78,6 @@ def init_database() -> None:
     )
     conn.commit()
 
-    # Migrations légères (anciens fichiers DB) : ajout des colonnes si absentes.
-    # SQLite ne supporte pas IF NOT EXISTS sur ADD COLUMN partout.
     for stmt in (
         "ALTER TABLE reports ADD COLUMN source_filename TEXT",
         "ALTER TABLE reports ADD COLUMN source_filesize INTEGER",
@@ -94,7 +89,6 @@ def init_database() -> None:
         except sqlite3.OperationalError:
             pass
 
-    # Indexes (best-effort) for faster filtering/pagination on large reports
     for stmt in (
         "CREATE INDEX IF NOT EXISTS idx_fax_entries_report_ts ON fax_entries(report_id, datetime_ts)",
         "CREATE INDEX IF NOT EXISTS idx_fax_entries_report_type ON fax_entries(report_id, type)",
@@ -106,30 +100,25 @@ def init_database() -> None:
         except sqlite3.OperationalError:
             pass
 
-    # Backfill datetime_ts for existing rows (best-effort)
     try:
         _backfill_datetime_ts(cur)
         conn.commit()
     except Exception:
-        # best-effort: do not prevent app start
+
         pass
 
     conn.close()
-
 
 def _parse_datetime_to_ts(value) -> Optional[int]:
     if value is None:
         return None
 
-    # Some pandas types stringify nicely; we just parse the string.
     text = str(value).strip()
     if not text:
         return None
 
-    # Normalize common ISO variants
     iso_text = text.replace("Z", "+00:00")
 
-    # Try python ISO parsing first
     try:
         dt = datetime.fromisoformat(iso_text)
         if dt.tzinfo is None:
@@ -138,7 +127,6 @@ def _parse_datetime_to_ts(value) -> Optional[int]:
     except Exception:
         pass
 
-    # Try known common formats
     for fmt in (
         "%Y-%m-%d %H:%M:%S",
         "%Y-%m-%d %H:%M",
@@ -156,7 +144,6 @@ def _parse_datetime_to_ts(value) -> Optional[int]:
 
     return None
 
-
 def _date_str_to_range(date_str: str) -> Tuple[Optional[int], Optional[int]]:
     """Parse YYYY-MM-DD to [start_ts, end_ts_exclusive] in UTC."""
     if not date_str:
@@ -172,9 +159,8 @@ def _date_str_to_range(date_str: str) -> Tuple[Optional[int], Optional[int]]:
     except Exception:
         return None, None
 
-
 def _backfill_datetime_ts(cur: sqlite3.Cursor) -> None:
-    # If the column doesn't exist yet, this will throw.
+
     cur.execute("SELECT COUNT(*) AS cnt FROM fax_entries WHERE datetime_ts IS NULL")
     missing = int(cur.fetchone()["cnt"])
     if missing <= 0:
@@ -194,13 +180,12 @@ def _backfill_datetime_ts(cur: sqlite3.Cursor) -> None:
             entry_id = r["id"]
             ts = _parse_datetime_to_ts(r["datetime"])
             if ts is None:
-                # Leave NULL if unparseable
+
                 continue
             cur.execute(
                 "UPDATE fax_entries SET datetime_ts = ? WHERE id = ?",
                 (ts, entry_id),
             )
-
 
 def insert_audit_event(
     action: str,
@@ -229,9 +214,8 @@ def insert_audit_event(
         conn.commit()
         conn.close()
     except Exception:
-        # best-effort: ne pas faire tomber une export/import à cause de l'audit
-        return
 
+        return
 
 def list_audit_events(limit: int = 200, offset: int = 0) -> List[Dict]:
     """Retourne les événements d'audit les plus récents."""
@@ -252,7 +236,6 @@ def list_audit_events(limit: int = 200, offset: int = 0) -> List[Dict]:
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
-
 
 def insert_report_to_db(
     report_id: str,
@@ -327,7 +310,6 @@ def insert_report_to_db(
     conn.commit()
     conn.close()
 
-
 def get_all_reports() -> List[Dict]:
     conn = _connect()
     cur = conn.cursor()
@@ -342,7 +324,6 @@ def get_all_reports() -> List[Dict]:
     rows = cur.fetchall()
     conn.close()
     return [dict(row) for row in rows]
-
 
 def get_dashboard_stats() -> Dict:
     """Retourne des KPIs globaux (dashboard) calculés en SQL."""
@@ -375,14 +356,12 @@ def get_dashboard_stats() -> Dict:
         "avg_success_rate": float(row["avg_success_rate"] or 0.0),
     }
 
-
 def _normalize_report_text_fields(report: Dict) -> Dict:
     for key in ("contract_id", "date_debut", "date_fin"):
         val = report.get(key)
         if isinstance(val, str) and val.strip().lower() in {"none", "null", ""}:
             report[key] = None
     return report
-
 
 def get_report_summary_by_id(report_id: str) -> Optional[Dict]:
     """Retourne un rapport sans les entrées (rapide pour affichage/API).
@@ -397,7 +376,6 @@ def get_report_summary_by_id(report_id: str) -> Optional[Dict]:
         conn.close()
         return None
 
-    # Agrégats type/pages sans charger toutes les entrées
     cur.execute(
         """
         SELECT type, COUNT(*) AS cnt, COALESCE(SUM(pages), 0) AS pages
@@ -442,7 +420,6 @@ def get_report_summary_by_id(report_id: str) -> Optional[Dict]:
     report["pages_recues"] = pages_rf
     report["entries_total"] = entries_total
 
-    # Compat avec champs existants
     if report.get("fax_envoyes") in (None, ""):
         report["fax_envoyes"] = fax_sf
     if report.get("fax_recus") in (None, ""):
@@ -451,7 +428,6 @@ def get_report_summary_by_id(report_id: str) -> Optional[Dict]:
         report["pages_totales"] = pages_sf + pages_rf
 
     return report
-
 
 def get_report_entries(
     report_id: str,
@@ -495,7 +471,6 @@ def get_report_entries(
         )
         params.extend([q_like, q_like, q_like])
 
-    # Date filtering relies on datetime_ts when available.
     if date_from:
         start_ts, _ = _date_str_to_range(date_from)
         if start_ts is not None:
@@ -532,8 +507,6 @@ def get_report_entries(
     conn = _connect()
     cur = conn.cursor()
 
-    # Optimization: fetch page + total in one query using a window function.
-    # If the page is empty, fall back to COUNT(*).
     cur.execute(
         f"""
         SELECT id, report_id, fax_id, utilisateur, type,
@@ -563,7 +536,6 @@ def get_report_entries(
     conn.close()
     return [], total
 
-
 def delete_report(report_id: str) -> None:
     conn = _connect()
     cur = conn.cursor()
@@ -571,7 +543,6 @@ def delete_report(report_id: str) -> None:
     cur.execute("DELETE FROM reports WHERE id = ?", (report_id,))
     conn.commit()
     conn.close()
-
 
 def get_report_by_id(report_id: str) -> Optional[Dict]:
     conn = _connect()
@@ -585,13 +556,12 @@ def get_report_by_id(report_id: str) -> Optional[Dict]:
     entries = [dict(r) for r in cur.fetchall()]
     conn.close()
     report = dict(row)
-    # Compat: certaines routes historiques exposaient `fax_entries`
+
     report["entries"] = entries
     report["fax_entries"] = entries
 
     _normalize_report_text_fields(report)
 
-    # Statistiques dérivées depuis les entrées (utile pour afficher pages SF/RF)
     pages_sf = 0
     pages_rf = 0
     fax_sf = 0
@@ -613,7 +583,7 @@ def get_report_by_id(report_id: str) -> Optional[Dict]:
 
     report["fax_sf"] = fax_sf
     report["fax_rf"] = fax_rf
-    # Compat avec champs stats/affichage
+
     report["fax_envoyes"] = report.get("fax_envoyes", fax_sf)
     report["fax_recus"] = report.get("fax_recus", fax_rf)
 
@@ -621,7 +591,6 @@ def get_report_by_id(report_id: str) -> Optional[Dict]:
     report["pages_reelles_rf"] = pages_rf
     report["pages_reelles_totales"] = pages_sf + pages_rf
 
-    # Champs pages (par cohérence avec "envoyées/reçues")
     report["pages_envoyees"] = pages_sf
     report["pages_recues"] = pages_rf
 

@@ -19,16 +19,12 @@ from werkzeug.utils import secure_filename
 
 from flask import Flask, Response, abort, jsonify, render_template, request, send_file
 
-# ─────────────────────────────────────────────────────────────
-# Application metadata
-# ─────────────────────────────────────────────────────────────
 __version__ = "1.2.0"
 __app_name__ = "FaxCloud Analyzer"
 __description__ = "Analyseur intelligent pour exports FaxCloud"
 
-# Rate limiting configuration (requests per minute per IP)
 RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", 120))
-RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", 60))  # seconds
+RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", 60))
 
 from core import (
     analyze_data,
@@ -66,14 +62,12 @@ from core.asterisk import (
 
 logger = logging.getLogger(__name__)
 
-
 def _sanitize_none(value):
     if value is None:
         return None
     if isinstance(value, str) and value.strip().lower() in {"none", "null", ""}:
         return None
     return value
-
 
 def _ensure_report_derived_fields(report_data: dict) -> dict:
     """Assure la présence des champs SF/RF et pages réelles (compat anciens rapports)."""
@@ -127,7 +121,6 @@ def _ensure_report_derived_fields(report_data: dict) -> dict:
 
     return report_data
 
-
 def create_app() -> Flask:
     ensure_directories()
     init_database()
@@ -145,14 +138,11 @@ def create_app() -> Flask:
         static_url_path="/static",
     )
 
-    app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
+    app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
     app.config["UPLOAD_FOLDER"] = str(settings.imports_dir)
     app.config["JSON_AS_ASCII"] = False
     app.config["JSON_SORT_KEYS"] = False
 
-    # ─────────────────────────────────────────────────────────────
-    # Simple in-memory rate limiter
-    # ─────────────────────────────────────────────────────────────
     _rate_limit_store: dict[str, list[float]] = defaultdict(list)
     _rate_limit_lock = threading.Lock()
 
@@ -160,14 +150,14 @@ def create_app() -> Flask:
         """Returns True if request is allowed, False if rate limited."""
         now = time.time()
         window_start = now - RATE_LIMIT_WINDOW
-        
+
         with _rate_limit_lock:
-            # Clean old entries
+
             _rate_limit_store[ip] = [t for t in _rate_limit_store[ip] if t > window_start]
-            
+
             if len(_rate_limit_store[ip]) >= RATE_LIMIT_REQUESTS:
                 return False
-            
+
             _rate_limit_store[ip].append(now)
             return True
 
@@ -180,9 +170,6 @@ def create_app() -> Flask:
                 logger.warning("Rate limit exceeded for IP: %s", ip)
                 return {"error": "Trop de requêtes. Réessayez dans quelques secondes."}, 429
 
-    # ─────────────────────────────────────────────────────────────
-    # Error handlers
-    # ─────────────────────────────────────────────────────────────
     @app.errorhandler(404)
     def not_found_error(error):
         if request.path.startswith("/api/"):
@@ -200,8 +187,6 @@ def create_app() -> Flask:
     def file_too_large(error):
         return {"error": "Fichier trop volumineux (max 100MB)"}, 413
 
-    # In-memory upload progress (best-effort) for "real-time" UX.
-    # Note: in multi-process deployments, each process has its own memory.
     _upload_jobs: dict[str, dict] = {}
     _upload_jobs_lock = threading.Lock()
 
@@ -225,7 +210,7 @@ def create_app() -> Flask:
                 _upload_jobs.pop(k, None)
 
     def _current_user() -> str:
-        # Auth retirée: on garde un champ user pour l'audit (valeur par défaut).
+
         return "local"
 
     @app.route("/health")
@@ -241,7 +226,7 @@ def create_app() -> Flask:
             init_database()
         except Exception:
             db_ok = False
-        
+
         return {
             "status": "healthy" if db_ok else "degraded",
             "version": __version__,
@@ -278,10 +263,6 @@ def create_app() -> Flask:
             },
         }, 200
 
-    # ─────────────────────────────────────────────────────────────
-    # Pages (SSR)
-    # ─────────────────────────────────────────────────────────────
-
     @app.route("/", methods=["GET"])
     def index():
         dashboard = get_dashboard_stats()
@@ -303,9 +284,21 @@ def create_app() -> Flask:
             return render_template("404.html"), 404
         return render_template("report.html", report=report)
 
-    # ─────────────────────────────────────────────────────────────
-    # API
-    # ─────────────────────────────────────────────────────────────
+    @app.route("/report/<report_id>/pdf", methods=["GET"])
+    def report_pdf(report_id: str):
+        from core.pdf import build_report_pdf
+        report = _ensure_report_derived_fields(get_report_by_id(report_id))
+        if not report:
+            abort(404)
+        pdf_bytes = build_report_pdf(report)
+        contract = (report.get("contract_id") or report_id[:8])
+        contract = "".join(c if c.isalnum() or c in "-_" else "_" for c in contract)
+        filename = f"rapport_{contract}.pdf"
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={filename}"},
+        )
 
     @app.route("/api/reports", methods=["GET"])
     def api_reports() -> tuple[dict, int]:
@@ -398,7 +391,7 @@ def create_app() -> Flask:
 
     @app.route("/api/report/<report_id>/export.json", methods=["GET"])
     def api_report_export_json(report_id: str):
-        # Par défaut: summary + stats dérivées (léger). `include_entries=1` pour complet.
+
         include_entries = request.args.get("include_entries") in {"1", "true", "yes"}
         if include_entries:
             report = _ensure_report_derived_fields(get_report_by_id(report_id))
@@ -420,12 +413,11 @@ def create_app() -> Flask:
 
     @app.route("/api/report/<report_id>/export.csv", methods=["GET"])
     def api_report_export_csv(report_id: str):
-        # Export CSV streaming des entrées
+
         report = get_report_summary_by_id(report_id)
         if not report:
             return {"error": "Rapport non trouvé"}, 404
 
-        # Optional filters for export (same as /entries)
         entry_type = request.args.get("type") or None
         valide = request.args.get("valide")
         q = request.args.get("q") or None
@@ -544,7 +536,7 @@ def create_app() -> Flask:
 
     @app.route("/api/report/<report_id>/export.entries.json", methods=["GET"])
     def api_report_export_entries_json(report_id: str):
-        # Streaming JSON array export for entries (optionally filtered)
+
         report = get_report_summary_by_id(report_id)
         if not report:
             return {"error": "Rapport non trouvé"}, 404
@@ -636,15 +628,11 @@ def create_app() -> Flask:
         }
         return Response(generate(), headers=headers)
 
-    # ─────────────────────────────────────────────────────────────
-    # API Asterisk / SDA
-    # ─────────────────────────────────────────────────────────────
-
     @app.route("/api/asterisk/config", methods=["GET"])
     def api_asterisk_config():
         """Retourne la configuration AMI Asterisk."""
         config = get_ami_config()
-        # Ne pas exposer le secret en clair
+
         if config.get("ami_secret"):
             config["ami_secret"] = "********"
         return jsonify(config)
@@ -659,12 +647,10 @@ def create_app() -> Flask:
         secret = data.get("ami_secret", "")
         enabled = bool(data.get("ami_enabled", False))
 
-        # Si le secret est masqué, garder l'ancien
         if secret == "********":
             old_config = get_ami_config()
             secret = old_config.get("ami_secret", "")
 
-        # Nouveaux paramètres de détection
         context = data.get("ami_context", "faxcloud-detect")
         caller_id = data.get("ami_caller_id", "FaxCloudTest")
         call_timeout = int(data.get("ami_call_timeout", 15))
@@ -792,10 +778,6 @@ def create_app() -> Flask:
         stats = engine.get_stats(entries)
         return jsonify({"report_id": report_id, "asterisk_stats": stats})
 
-    # ──────────────────────────────────────────
-    # API Détection de tonalité fax
-    # ──────────────────────────────────────────
-
     @app.route("/api/asterisk/detect", methods=["POST"])
     def api_asterisk_detect():
         """
@@ -825,7 +807,6 @@ def create_app() -> Flask:
             result["numero_original"] = numeros[0]
             return jsonify(result)
 
-        # Batch : limiter à 50 numéros par requête
         if len(numeros) > 50:
             return {"error": "Maximum 50 numéros par requête"}, 400
 
@@ -1087,7 +1068,6 @@ def create_app() -> Flask:
         filepath = Path(app.config["UPLOAD_FOLDER"]) / filename
         f.save(str(filepath))
 
-        # Traçabilité fichier (utile pour un produit vendable)
         try:
             size = filepath.stat().st_size
         except Exception:
@@ -1145,7 +1125,6 @@ def create_app() -> Flask:
 
     return app
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="FaxCloud Analyzer - serveur web")
     parser.add_argument("--host", default="127.0.0.1")
@@ -1156,7 +1135,5 @@ def main() -> None:
     app = create_app()
     app.run(host=args.host, port=args.port, debug=args.debug)
 
-
 if __name__ == "__main__":
     main()
-

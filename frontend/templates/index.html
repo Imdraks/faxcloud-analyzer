@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -28,7 +28,6 @@
             </a>
         </nav>
         <div class="side-footer">
-            <button id="themeToggle" class="btn-theme" type="button">Mode sombre</button>
             <span class="side-footer-meta">v1.2.0</span>
         </div>
     </aside>
@@ -44,7 +43,6 @@
         <main class="main">
             <div class="content-grid">
 
-                <!-- Import -->
                 <section class="section">
                     <h2>Importer un fichier</h2>
 
@@ -79,7 +77,6 @@
                     <div id="uploadMessage"></div>
                 </section>
 
-                <!-- Dashboard -->
                 <section class="section">
                     <h2>Vue d'ensemble</h2>
                     <div class="stats-grid">
@@ -105,139 +102,11 @@
                     </div>
                 </section>
 
-
             </div>
         </main>
     </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
-</body>
-</html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FaxCloud Analyzer - Accueil</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <div class="app-shell">
-        <aside class="sidebar">
-            <div class="brand">
-                <div class="brand-title">FaxCloud Analyzer</div>
-                <div class="brand-subtitle">Interface interne</div>
-            </div>
-
-            <nav class="side-nav">
-                <a class="side-link icon-only active" href="/" aria-label="Accueil" title="Accueil">
-                    <span class="side-link-left">
-                        <svg class="side-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M3 11.5L12 4l9 7.5" />
-                            <path d="M5 10.5V20h14v-9.5" />
-                        </svg>
-                        <span class="sr-only">Accueil</span>
-                    </span>
-                </a>
-                <a class="side-link icon-only" href="/reports" aria-label="Rapports" title="Rapports">
-                    <span class="side-link-left">
-                        <svg class="side-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M7 3h7l3 3v15H7z" />
-                            <path d="M14 3v4h4" />
-                            <path d="M9 12h6" />
-                            <path d="M9 16h6" />
-                        </svg>
-                        <span class="sr-only">Rapports</span>
-                    </span>
-                </a>
-            </nav>
-
-            <div class="side-footer">
-                <button id="themeToggle" class="btn btn-small btn-ghost" type="button" aria-pressed="false">Mode sombre</button>
-                <div class="side-footer-meta">v1.2.0</div>
-            </div>
-        </aside>
-
-        <div class="content">
-            <header class="topbar">
-                <div>
-                    <h1 class="page-title">Accueil</h1>
-                    <p class="page-subtitle">Importer et analyser vos exports FaxCloud.</p>
-                </div>
-            </header>
-
-            <main class="main">
-                <div class="content-grid">
-                    <section class="section">
-                        <h2>Importer un fichier</h2>
-
-                        <div class="drag-drop-zone" id="dragDropZone">
-                            <p><strong>Glissez-déposez votre CSV/XLSX ici</strong></p>
-                            <p style="font-size: 0.9rem; margin: 1rem 0;">ou</p>
-                            <label for="fileInput" class="btn">Sélectionner un fichier</label>
-                            <input type="file" id="fileInput" accept=".csv,.xlsx" style="display: none;">
-                        </div>
-
-                        <div style="margin-top: 1.5rem; padding: 1rem; background: #f5f5f5; border-radius: 4px;">
-                            <h3 style="margin-top: 0;">Options d'analyse</h3>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                <input type="checkbox" id="enableDetection" style="cursor: pointer;">
-                                <span><strong>Détection Asterisk</strong></span>
-                            </label>
-                            <p style="margin-top: 0.5rem; margin-bottom: 0; font-size: 0.9rem; color: #666;">
-                                Active la détection des tonalités fax en temps réel via Asterisk (peut être lent avec beaucoup de numéros).
-                            </p>
-                        </div>
-
-                        <div id="uploadProgress" class="hidden">
-                            <p id="uploadStatus" role="status" aria-live="polite">Importation en cours...</p>
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="progressFill"></div>
-                            </div>
-                        </div>
-
-                        <div id="uploadMessage"></div>
-                    </section>
-
-                    <section class="section">
-                        <h2>Dashboard</h2>
-                        <div class="stats-grid">
-                            <div class="stat-card">
-                                <h4>Rapports</h4>
-                                <p class="stat-value">{{ dashboard.reports_count if dashboard else reports_count }}</p>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Total FAX</h4>
-                                <p class="stat-value">{{ dashboard.total_fax if dashboard else 0 }}</p>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Erreurs</h4>
-                                <p class="stat-value">{{ dashboard.total_errors if dashboard else 0 }}</p>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Taux moyen</h4>
-                                <p class="stat-value">{{ '%.1f'|format(dashboard.avg_success_rate) if dashboard else '0.0' }}%</p>
-                            </div>
-                        </div>
-                        <div style="margin-top: 1rem;">
-                            <a href="/reports" class="btn">Voir les rapports</a>
-                        </div>
-                    </section>
-
-                    <section class="section" style="grid-column: 1 / -1;">
-                        <h2>Détection Asterisk</h2>
-                        <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
-                            <button id="btnSimulation" class="btn" type="button" style="min-width: 200px;">Chargement…</button>
-                            <span id="simStatus" style="font-size: 0.9rem; color: #666;"></span>
-                        </div>
-                    </section>
-                </div>
-            </main>
-        </div>
-    </div>
-
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>
 </html>

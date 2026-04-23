@@ -10,7 +10,6 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-
 TARGET_COLUMNS = (
     "fax_id",
     "utilisateur",
@@ -21,7 +20,6 @@ TARGET_COLUMNS = (
     "pages",
 )
 
-
 def _canonicalize_column_name(name: str) -> str:
     text = str(name or "").strip().lower()
     text = unicodedata.normalize("NFKD", text)
@@ -29,7 +27,6 @@ def _canonicalize_column_name(name: str) -> str:
     text = text.replace("'", " ")
     text = re.sub(r"[^a-z0-9]+", " ", text)
     return re.sub(r"\s+", " ", text).strip()
-
 
 COLUMN_ALIASES: Dict[str, List[str]] = {
     "fax_id": [
@@ -81,26 +78,22 @@ COLUMN_ALIASES: Dict[str, List[str]] = {
     ],
 }
 
-
 def _read_file(file_path: Path) -> pd.DataFrame:
     if file_path.suffix.lower() in {".xlsx", ".xls"}:
         return pd.read_excel(file_path)
-    
-    # Essayer différents encodings pour CSV
+
     encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
     for encoding in encodings:
         try:
-            # FaxCloud exports are often ';' separated. sep=None will sniff, but ';' is common.
+
             return pd.read_csv(file_path, sep=None, engine="python", encoding=encoding)
         except (UnicodeDecodeError, LookupError):
             continue
-    
-    # Fallback: charger sans encoder spécifique (pandas gérera)
+
     return pd.read_csv(file_path, sep=None, engine="python", encoding='utf-8', errors='replace')
 
-
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    # Map canonical name -> original column name
+
     canonical_to_original: Dict[str, str] = {}
     for col in df.columns:
         canonical_to_original[_canonicalize_column_name(col)] = col
@@ -131,7 +124,6 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     return df.rename(columns=rename_map)
-
 
 def import_faxcloud_export(file_path: str) -> List[Dict]:
     """
