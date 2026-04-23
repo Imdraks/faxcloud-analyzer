@@ -78,19 +78,33 @@ COLUMN_ALIASES: Dict[str, List[str]] = {
     ],
 }
 
+def _sniff_sep(file_path: Path, encoding: str) -> str:
+    import csv as _csv
+    try:
+        with open(file_path, "r", encoding=encoding, errors="replace") as fh:
+            sample = fh.read(16384)
+        dialect = _csv.Sniffer().sniff(sample, delimiters=",;\t|")
+        return dialect.delimiter
+    except Exception:
+        return ","
+
+
 def _read_file(file_path: Path) -> pd.DataFrame:
     if file_path.suffix.lower() in {".xlsx", ".xls"}:
         return pd.read_excel(file_path)
 
-    encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+    encodings = ["utf-8", "latin-1", "iso-8859-1", "cp1252"]
     for encoding in encodings:
         try:
-
-            return pd.read_csv(file_path, sep=None, engine="python", encoding=encoding)
+            sep = _sniff_sep(file_path, encoding)
+            return pd.read_csv(file_path, sep=sep, encoding=encoding)
         except (UnicodeDecodeError, LookupError):
             continue
+        except Exception:
+            continue
 
-    return pd.read_csv(file_path, sep=None, engine="python", encoding='utf-8', errors='replace')
+    sep = _sniff_sep(file_path, "utf-8")
+    return pd.read_csv(file_path, sep=sep, encoding="utf-8", errors="replace")
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
